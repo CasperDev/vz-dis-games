@@ -1,0 +1,11 @@
+VZ Ghost Hunter
+
+Avoid the Ghosts and Eat all the Dots in a Maze
+
+There are 4 Power Pills, one in each corner - they are Large Flashing Dots.
+
+Eating one of these will allow you to Chase the Ghost.
+When the screen returns to its original colour your chase time is up.
+
+After the third Frame a Bonus Symbol will randomly appear below the Ghost Cage.
+If it is not Eaten in time then the Walls of Maze will disappear.
