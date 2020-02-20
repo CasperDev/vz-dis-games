@@ -175,9 +175,9 @@ l7dc1h:
 	ld a,(068dfh)		;7dfb	3a df 68 	: . h 
 	bit 2,a		;7dfe	cb 57 	. W 
 	jr nz,l7dc1h		;7e00	20 bf 	  . 
-	ld a,(KEYS_ROW_1)		;7e02	3a fd 68 	: . h 
-	bit 2,a		;7e05	cb 57 	. W 
-	jp z,l8f7ch		;7e07	ca 7c 8f 	. | . 
+	ld a,(KEYS_ROW_1)		; select Keyboard row 1 								;7e02	3a fd 68 
+	bit 2,a					; check if key 'CTRL' is pressed?						;7e05	cb 57 
+	jp z,l8f7ch				; yes - ;7e07	ca 7c 8f 	. | . 
 	jr l7dc1h		;7e0a	18 b5 	. . 
 sub_7e0ch:
 	call sub_8f76h		;7e0c	cd 76 8f 	. v . 
@@ -2673,23 +2673,23 @@ sub_8f85h:
 ;
 ;***********************************************************************************************
 GAME_INIT:
-	di						; disable interrupts								;8f88	f3 
-	ld sp,BASE_SP			; reset CPU Stack Pointer to base address			;8f89	31 f0 7c 
-	call sub_944bh		;8f8c	cd 4b 94 	. K . 
-	ld hl,TXT_JOYSTICK_Q	; text to display - Joystick Question				;8f8f	21 c5 9a 
-	ld de,VRAM				; dst - screen position (0,0)						;8f92	11 00 70 
+	di						; disable interrupts									;8f88	f3 
+	ld sp,BASE_SP			; reset CPU Stack Pointer to base address				;8f89	31 f0 7c 
+	call CLEAR_SCREEN_GFX	; clear screen - MOde 1 (Gfx)							;8f8c	cd 4b 94 
+	ld hl,TXT_JOYSTICK_Q	; text to display - Joystick Question					;8f8f	21 c5 9a 
+	ld de,VRAM				; dst - screen position (0,0)							;8f92	11 00 70 
 	call sub_9423h		;8f95	cd 23 94 	. # . 
 l8f98h:
-	xor a			;8f98	af 	. 
-	ld (JOY_ENABLE),a		;8f99	32 00 78 	2 . x 
-	ld a,(KEYS_ROW_4)		;8f9c	3a ef 68 	: . h 
-	bit 0,a		;8f9f	cb 47 	. G 
-	jp z,l8fb1h		;8fa1	ca b1 8f 	. . . 
-	ld a,001h		;8fa4	3e 01 	> . 
-	ld (JOY_ENABLE),a		;8fa6	32 00 78 	2 . x 
-	ld a,(KEYS_ROW_6)		;8fa9	3a bf 68 	: . h 
-	bit 0,a		;8fac	cb 47 	. G 
-	jp nz,l8f98h		;8fae	c2 98 8f 	. . . 
+	xor a					; default 0 - Joystick disabled							;8f98	af 
+	ld (JOY_ENABLE),a		; store in Game Settings variable						;8f99	32 00 78 
+	ld a,(KEYS_ROW_4)		; select Keyboard row 4 								;8f9c	3a ef 68
+	bit 0,a					; check if key 'N' is pressed							;8f9f	cb 47 
+	jp z,l8fb1h				; yes - ;8fa1	ca b1 8f 	. . . 
+	ld a,1					; value 1 - Joystick Enabled							;8fa4	3e 01 
+	ld (JOY_ENABLE),a		; store in Game Settings variable						;8fa6	32 00 78 
+	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;8fa9	3a bf 68 
+	bit 0,a					; check if key 'Y' is pressed							;8fac	cb 47 
+	jp nz,l8f98h			; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
 l8fb1h:
 	ld hl,l96e0h		;8fb1	21 e0 96 	! . . 
 	ld de,l96e1h		;8fb4	11 e1 96 	. . . 
@@ -2973,31 +2973,35 @@ l9146h:
 l9197h:
 	call sub_92cah		;9197	cd ca 92 	. . . 
 l919ah:
-	ld de,06000h		;919a	11 00 60 	. . ` 
-	call sub_941dh		;919d	cd 1d 94 	. . . 
+	ld de,$6000				; delay parameter value 								;919a	11 00 60 
+	call DELAY_DE			; wait delay											;919d	cd 1d 94 
 l91a0h:
-	ld a,(KEYS_ROW_4)		;91a0	3a ef 68 	: . h 
-	bit 3,a		;91a3	cb 5f 	. _ 
-	jr z,l91bch		;91a5	28 15 	( . 
-	bit 5,a		;91a7	cb 6f 	. o 
-	jr z,l91c0h		;91a9	28 15 	( . 
-	bit 1,a		;91ab	cb 4f 	. O 
-	jr z,l91c4h		;91ad	28 15 	( . 
-	bit 4,a		;91af	cb 67 	. g 
-	jr z,l91c8h		;91b1	28 15 	( . 
-	ld a,(KEYS_ROW_6)		;91b3	3a bf 68 	: . h 
-	bit 2,a		;91b6	cb 57 	. W 
-	jr z,l9213h		;91b8	28 59 	( Y 
-	jr l91a0h		;91ba	18 e4 	. . 
+	ld a,(KEYS_ROW_4)		; select Keyboard row 4 								;91a0	3a ef 68
+	bit 3,a					; check if key ',' is pressed							;91a3	cb 5f 
+	jr z,l91bch		; yes - ;91a5	28 15 	( . 
+	bit 5,a					; check if key 'M' is pressed							;91a7	cb 6f 
+	jr z,l91c0h		; yes - ;91a9	28 15 	( . 
+	bit 1,a					; check if key '.' is pressed							;91ab	cb 4f 
+	jr z,l91c4h		; yes - ;91ad	28 15 	( . 
+	bit 4,a					; check if key 'SPACE' is pressed						;91af	cb 67
+	jr z,l91c8h		; yes - ;91b1	28 15 	( . 
+	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;91b3	3a bf 68 
+	bit 2,a					; check if 'RETURN' key is pressed						;91b6	cb 57 
+	jr z,l9213h		; yes - ;91b8	28 59 	( Y 
+	jr l91a0h				; wait for one of defined keys							;91ba	18 e4 
+; -- key ',' (comma) is pressed
 l91bch:
 	ld a,001h		;91bc	3e 01 	> . 
 	jr l91cah		;91be	18 0a 	. . 
+; -- key 'M' is pressed
 l91c0h:
 	ld a,01dh		;91c0	3e 1d 	> . 
 	jr l91cah		;91c2	18 06 	. . 
+; -- key '.' (dot) is pressed
 l91c4h:
 	ld a,018h		;91c4	3e 18 	> . 
 	jr l91cah		;91c6	18 02 	. . 
+; -- key 'SPACE' is pressed
 l91c8h:
 	ld a,006h		;91c8	3e 06 	> . 
 l91cah:
@@ -3060,6 +3064,8 @@ l920fh:
 	nop			;9210	00 	. 
 	nop			;9211	00 	. 
 	nop			;9212	00 	. 
+
+; -- key 'RETURN' is pressed
 l9213h:
 	push bc			;9213	c5 	. 
 	push hl			;9214	e5 	. 
@@ -3232,8 +3238,8 @@ l9323h:
 	push hl			;9324	e5 	. 
 	push bc			;9325	c5 	. 
 	call sub_93b9h		;9326	cd b9 93 	. . . 
-	ld de,02000h		;9329	11 00 20 	. .   
-	call sub_941dh		;932c	cd 1d 94 	. . . 
+	ld de,$2000				; delay parameter value								;9329	11 00 20 
+	call DELAY_DE			; wait delay										;932c	cd 1d 94 
 	pop bc			;932f	c1 	. 
 	pop hl			;9330	e1 	. 
 	pop af			;9331	f1 	. 
@@ -3257,8 +3263,8 @@ l934ah:
 	push de			;934c	d5 	. 
 	push hl			;934d	e5 	. 
 	call sub_936fh		;934e	cd 6f 93 	. o . 
-	ld de,02000h		;9351	11 00 20 	. .   
-	call sub_941dh		;9354	cd 1d 94 	. . . 
+	ld de,$2000				; delay parameter value									;9351	11 00 20 
+	call DELAY_DE			; wait delay											;9354	cd 1d 94 
 	pop de			;9357	d1 	. 
 	pop hl			;9358	e1 	. 
 	ld bc,00041h		;9359	01 41 00 	. A . 
@@ -3389,28 +3395,34 @@ sub_93ebh:
 	pop bc			;93f9	c1 	. 
 	ret			;93fa	c9 	. 
 sub_93fbh:
-	ld a,(KEYS_ROW_6)		;93fb	3a bf 68 	: . h 
-	bit 3,a		;93fe	cb 5f 	. _ 
-	jp z,l9a4fh		;9400	ca 4f 9a 	. O . 
-	bit 4,a		;9403	cb 67 	. g 
-	ret nz			;9405	c0 	. 
+	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;93fb	3a bf 68 
+	bit 3,a					; check if key 'I' is pressed							;93fe	cb 5f 
+	jp z,SHOW_MANUAL		; yes - show Manual/Instruction pages;9400	ca 4f 9a 	. O . 
+	bit 4,a					; check if key 'P' is pressed							;9403	cb 67 
+	ret nz					; no ------------ End of Proc (no key) ----------------	;9405	c0 
+; -- key 'P' is pressed
 	ld hl,0002ch		;9406	21 2c 00 	! , . 
 	ld (l98abh),hl		;9409	22 ab 98 	" . . 
 	jp l7d03h		;940c	c3 03 7d 	. . } 
 sub_940fh:
 	ld b,014h		;940f	06 14 	. . 
 l9411h:
-	ld de,04000h		;9411	11 00 40 	. . @ 
-	call sub_941dh		;9414	cd 1d 94 	. . . 
+	ld de,$4000				; delay parameter value									;9411	11 00 40
+	call DELAY_DE			; wait delay											;9414	cd 1d 94 
 	call sub_93fbh		;9417	cd fb 93 	. . . 
 	djnz l9411h		;941a	10 f5 	. . 
 	ret			;941c	c9 	. 
-sub_941dh:
-	dec de			;941d	1b 	. 
-	ld a,d			;941e	7a 	z 
-	or e			;941f	b3 	. 
-	jr nz,sub_941dh		;9420	20 fb 	  . 
-	ret			;9422	c9 	. 
+
+
+;***********************************************************************************************
+; Delay by decrementing register de
+; IN: de - value determining time to delay
+DELAY_DE:
+	dec de					; decrement de											;941d	1b 
+	ld a,d					; check if de = 0										;941e	7a
+	or e																			;941f	b3 
+	jr nz,DELAY_DE			; no - wait until de = 0								;9420	20 fb 
+	ret						; ------------------- End of Proc --------------------- ;9422	c9
 
 
 sub_9423h:
@@ -3446,18 +3458,24 @@ l943bh:
 sub_9446h:
 	ld hl,0aa80h		;9446	21 80 aa 	! . . 
 	jr l944eh		;9449	18 03 	. . 
-sub_944bh:
-	ld hl,VRAM				; screen coord (0,0)								;944b	21 00 70
+
+
+;***********************************************************************************************
+; Clear Screen and set Graphics MODE 1 with default Color Palette
+CLEAR_SCREEN_GFX:
+	ld hl,VRAM				; screen coord (0,0)px								;944b	21 00 70
 l944eh:
-	ld a,008h		;944e	3e 08 	> . 
-	ld (IOLATCH),a		;9450	32 00 68 	2 . h 
-	push hl			;9453	e5 	. 
-	pop de			;9454	d1 	. 
-	inc de			;9455	13 	. 
-	ld bc,007ffh		;9456	01 ff 07 	. . . 
-	ld (hl),000h		;9459	36 00 	6 . 
-	ldir		;945b	ed b0 	. . 
-	ret			;945d	c9 	. 
+; -- set Video Graphics Mode 1
+	ld a,VDG_GFX_COLORS_0	; Video Graphics Mode 1 (128x64)px					;944e	3e 08 
+	ld (IOLATCH),a			; set in hardware register							;9450	32 00 68 
+; -- fill 2048 bytes of RAM pointed by hl 
+	push hl					; copy hl to de										;9453	e5 
+	pop de					; de - destination VRAM address						;9454	d1 
+	inc de					; de - address + 1									;9455	13 
+	ld bc,2047				; 2048 bytes to fill with 0	(4 greeen pixels)		;9456	01 ff 07 
+	ld (hl),0				; put 0 into first VRAM byte						;9459	36 00 
+	ldir					; fill all 2047 bytes with 0						;945b	ed b0 
+	ret						; --------------------- End of Proc --------------- ;945d	c9 
 
 
 l945eh:
@@ -4258,52 +4276,56 @@ PRINT_TEXT:
 	jr PRINT_TEXT			; print next char										;9a4d	18 e3 
 
 
-l9a4fh:
+SHOW_MANUAL:
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a4f	cd 20 9a
 	ld hl,TXT_MANUAL_PAGE1	; instruction text - Page 1								;9a52	21 d8 9a 
 	ld de,VRAM				; dst - screen coord (0,0)								;9a55	11 00 70 
 	call PRINT_TEXT			; print Instruction Page 1 on screen					;9a58	cd 32 9a 
-	call sub_9aa0h		;9a5b	cd a0 9a 	. . . 
+	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a5b	cd a0 9a 
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a5e	cd 20 9a  
 	ld hl,TXT_MANUAL_PAGE2	; instruction text - Page 2								;9a61	21 03 9c 
 	ld de,VRAM+(32*1)+0		; dst - screen coord (0,1)								;9a64	11 20 70 
 	call PRINT_TEXT			; print Instruction Page 2 on screen					;9a67	cd 32 9a  
-	call sub_9aa0h		;9a6a	cd a0 9a 	. . . 
+	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a6a	cd a0 9a  
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a6d	cd 20 9a 
 	ld hl,TXT_MANUAL_PAGE3	; instruction text - Page 3								;9a70	21 6e 9d 
 	ld de,VRAM+(32*1)+0		; dst - screen coord (0,1)								;9a73	11 20 70 
 	call PRINT_TEXT			; print Instruction Page 3 on screen					;9a76	cd 32 9a 
-	call sub_9aa0h		;9a79	cd a0 9a 	. . . 
+	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a79	cd a0 9a 
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a7c	cd 20 9a 
-	ld hl,l9eebh		;9a7f	21 eb 9e 	! . . 
+	ld hl,TXT_MANUAL_PAGE4	; instruction text - Page 4								;9a7f	21 eb 9e 
 	ld de,VRAM+(32*1)+0		; dst - screen coord (0,1)								;9a82	11 20 70
-	call PRINT_TEXT		;9a85	cd 32 9a 	. 2 . 
-	call sub_9aa0h		;9a88	cd a0 9a 	. . . 
+	call PRINT_TEXT			; print Instruction Page 4 on screen					;9a85	cd 32 9a 
+	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a88	cd a0 9a 	
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a8b	cd 20 9a 
-	ld hl,la01eh		;9a8e	21 1e a0 	! . . 
+	ld hl,TXT_MANUAL_PAGE5	; instruction text - Page 5								;9a8e	21 1e a0 
 	ld de,VRAM+(32*1)+0		; dst - screen coord (0,1)								;9a91	11 20 70  
-	call PRINT_TEXT		;9a94	cd 32 9a 	. 2 . 
-	call sub_9aa0h		;9a97	cd a0 9a 	. . . 
-	call sub_944bh		;9a9a	cd 4b 94 	. K . 
+	call PRINT_TEXT			; print Instruction Page 5 on screen					;9a94	cd 32 9a 
+	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a97	cd a0 9a 
+	call CLEAR_SCREEN_GFX	; clear screeen - Mode 1 (Gfx)							;9a9a	cd 4b 94 
 	jp l8fcbh		;9a9d	c3 cb 8f 	. . . 
-sub_9aa0h:
-	ld hl,la0dch		;9aa0	21 dc a0 	! . . 
-	ld de,071e0h		;9aa3	11 e0 71 	. . q 
-	call PRINT_TEXT		;9aa6	cd 32 9a 	. 2 . 
-l9aa9h:
-	ld a,(KEYS_ROW_2)		;9aa9	3a fb 68 	: . h 
-	bit 3,a		;9aac	cb 5f 	. _ 
-	jr nz,l9aa9h		;9aae	20 f9 	  . 
-l9ab0h:
-	ld a,(KEYS_ROW_2)		;9ab0	3a fb 68 	: . h 
-	bit 3,a		;9ab3	cb 5f 	. _ 
-	jr z,l9ab0h		;9ab5	28 f9 	( . 
-	ld de,02000h		;9ab7	11 00 20 	. .   
-	call sub_941dh		;9aba	cd 1d 94 	. . . 
-	ld a,(KEYS_ROW_2)		;9abd	3a fb 68 	: . h 
-	bit 3,a		;9ac0	cb 5f 	. _ 
-	jr z,l9ab0h		;9ac2	28 ec 	( . 
-	ret			;9ac4	c9 	. 
+
+PROMPT_C_TO_CONT:
+	ld hl,TXT_PRESS_C_CONT	; text - Press C to Continue							;9aa0	21 dc a0 
+	ld de,VRAM+(15*32)		; dst - screen coord (0,15) - last line					;9aa3	11 e0 71 
+	call PRINT_TEXT			; print text on screen									;9aa6	cd 32 9a
+.WAIT_C_PRESSED:
+	ld a,(KEYS_ROW_2)		; select Keyboard row 2 								;9aa9	3a fb 68  
+	bit 3,a					; check if key 'C' is pressed							;9aac	cb 5f
+	jr nz,.WAIT_C_PRESSED	; no - wait for press key 'C'							;9aae	20 f9 
+.WAIT_C_RELEASED:
+	ld a,(KEYS_ROW_2)		; select Keyboard row 2 								;9ab0	3a fb 68 
+	bit 3,a					; check if key 'C' is pressed							;9ab3	cb 5f 
+	jr z,.WAIT_C_RELEASED	; yes - wait for release key 'C'						;9ab5	28 f9 
+; -- wait delay and check again if key 'C' is released
+	ld de,$2000				; delay parameter value 								;9ab7	11 00 20 
+	call DELAY_DE			; wait Delay											;9aba	cd 1d 94 
+; -- read keyboard again
+	ld a,(KEYS_ROW_2)		; select Keyboard row 2 								;9abd	3a fb 68 
+	bit 3,a					; check if key 'C' is pressed							;9ac0	cb 5f 
+	jr z,.WAIT_C_RELEASED	; yes - wait for release key 'C'						;9ac2	28 ec 
+; -- key is released
+	ret						; ---------------------- End of Proc ------------------ ;9ac4	c9
 
 
 ;***********************************************************************************************
@@ -4319,8 +4341,8 @@ l9ab0h:
 TXT_JOYSTICK_Q:
 	defb "JOYSTICK    Y OR N",0					;9ac5	4a 4f 59 53 54 49 43 4b 20 20 20 20 59 20 4f 52 20 4e 00
 
-
-
+;***********************************************************************************************
+; Manual/Instruction Page 1 text
 TXT_MANUAL_PAGE1:
 	defb 13										;9ad8	0d 
 	defb "     D A W N    P A T R O L",13		;9ad9	20 20 20 20 20 44 20 41 20 57 20 4e 20 20 20 20 50 20 41 20 54 20 52 20 4f 20 4c 0d
@@ -4335,7 +4357,8 @@ TXT_MANUAL_PAGE1:
 	defb "IN YOUR HELICOPTER THE FASTER",13		;9bcc	49 4e 20 59 4f 55 52 20 48 45 4c 49 43 4f 50 54 45 52 20 54 48 45 20 46 41 53 54 45 52 0d
 	defb "IT WILL USE UP ITS FUEL.",0			;9bea	49 54 20 57 49 4c 4c 20 55 53 45 20 55 50 20 49 54 53 20 46 55 45 4c 2e 00 	
 
-
+;***********************************************************************************************
+; Manual/Instruction Page 2 text
 TXT_MANUAL_PAGE2:
 	defb "YOU MUST RETURN BACK TO YOUR",13		;9c03	59 4f 55 20 4d 55 53 54 20 52 45 54 55 52 4e 20 42 41 43 4b 20 54 4f 20 59 4f 55 52 0d 
 	defb "BASE BEFORE YOUR FUEL RUNS OUT.",13	;9c20	42 41 53 45 20 42 45 46 4f 52 45 20 59 4f 55 52 20 46 55 45 4c 20 52 55 4e 53 20 4f 55 54 2e 0d 
@@ -4350,7 +4373,8 @@ TXT_MANUAL_PAGE2:
 	defb "YOUR HELICOPTER MUST NOT HIT ",13		;9d31	59 4f 55 52 20 48 45 4c 49 43 4f 50 54 45 52 20 4d 55 53 54 20 4e 4f 54 20 48 49 54 20 0d 
 	defb "OR BE HIT BY ANY OBSTACLE WITH",0		;9d4f	4f 52 20 42 45 20 48 49 54 20 42 59 20 41 4e 59 20 4f 42 53 54 41 43 4c 45 20 57 49 54 48 00
 
-
+;***********************************************************************************************
+; Manual/Instruction Page 3 text
 TXT_MANUAL_PAGE3:
 	defb "THE EXCEPTION OF A PLANE COMING",13	;9d6e	54 48 45 20 45 58 43 45 50 54 49 4f 4e 20 4f 46 20 41 20 50 4c 41 4e 45 20 43 4f 4d 49 4e 47 0d
 	defb "TOWARDS OR GOING AWAY FROM YOU,",13	;9d8e	54 4f 57 41 52 44 53 20 4f 52 20 47 4f 49 4e 47 20 41 57 41 59 20 46 52 4f 4d 20 59 4f 55 2c 0d
@@ -4366,8 +4390,9 @@ TXT_MANUAL_PAGE3:
 	defb "TIME OR HAVE RESCUED ALL THE",13		;9eb9	54 49 4d 45 20 4f 52 20 48 41 56 45 20 52 45 53 43 55 45 44 20 41 4c 4c 20 54 48 45 0d 
 	defb "REMAINING PRISONERS.",0				;9ed6	52 45 4d 41 49 4e 49 4e 47 20 50 52 49 53 4f 4e 45 52 53 2e 00 	
 
-
-l9eebh:
+;***********************************************************************************************
+; Manual/Instruction Page 4 text
+TXT_MANUAL_PAGE4:
 	defb "THE TOP LINE OF THE SCREEN",13		;9eeb	54 48 45 20 54 4f 50 20 4c 49 4e 45 20 4f 46 20 54 48 45 20 53 43 52 45 45 4e 0d
 	defb "WILL DISPLAY THE FOLLOWING ",13		;9f06	57 49 4c 4c 20 44 49 53 50 4c 41 59 20 54 48 45 20 46 4f 4c 4c 4f 57 49 4e 47 20 0d
 	defb "INFORMATION. PRISONERS LEFT",13		;9f22	49 4e 46 4f 52 4d 41 54 49 4f 4e 2e 20 50 52 49 53 4f 4e 45 52 53 20 4c 45 46 54 0d
@@ -4380,8 +4405,9 @@ l9eebh:
 	defb "SHOW THE FOLLOWING NUMBERS.",13		;9fe1	53 48 4f 57 20 54 48 45 20 46 4f 4c 4c 4f 57 49 4e 47 20 4e 55 4d 42 45 52 53 2e 0d 
 	defb "20 20 20 20  999  00000  4  4.00",0	;9ffd	32 30 20 32 30 20 32 30 20 32 30 20 20 39 39 39 20 20 30 30 30 30 30 20 20 34 20 20 34 2e 30 30 00 
 
-
-la01eh:
+;***********************************************************************************************
+; Manual/Instruction Page 5 text
+TXT_MANUAL_PAGE5:
 	defb "IF YOU GET ONE OF THE TOP TEN",13		;a01e	49 46 20 59 4f 55 20 47 45 54 20 4f 4e 45 20 4f 46 20 54 48 45 20 54 4f 50 20 54 45 4e 0d
 	defb "HIGH SCORES YOU CAN PUT YOUR",13		;a03c	48 49 47 48 20 53 43 4f 52 45 53 20 59 4f 55 20 43 41 4e 20 50 55 54 20 59 4f 55 52 0d
 	defb "NAME ON THE SCORE BOARD. TO DO",13	;a059	4e 41 4d 45 20 4f 4e 20 54 48 45 20 53 43 4f 52 45 20 42 4f 41 52 44 2e 20 54 4f 20 44 4f 0d
@@ -4390,8 +4416,9 @@ la01eh:
 	defb "OR COMMAND REQUIRED AND PRESS",13		;a0b4	4f 52 20 43 4f 4d 4d 41 4e 44 20 52 45 51 55 49 52 45 44 20 41 4e 44 20 50 52 45 53 53 0d 
 	defb "<RETURN>.",0							;a0d2	3c 52 45 54 55 52 4e 3e 2e 00 
 
-
-la0dch:
+;***********************************************************************************************
+; Prompt for C to Continue text
+TXT_PRESS_C_CONT:
 	defb "   PRESS  <C>  TO  CONTINUE",0		;a0dc	20 20 20 50 52 45 53 53 20 20 3c 43 3e 20 20 54 4f 20 20 43 4f 4e 54 49 4e 55 45 00
 
 	;endmodule
