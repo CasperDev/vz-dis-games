@@ -30,7 +30,7 @@ VDG_MODE_CSS_MASK	equ		%00011000  			; mask to keep current Gfx settings
 BIT_SPK_MINUS   	equ     00100000b   		; Speake Pin (-)
 BIT_SPK_PLUS   		equ     00000001b   		; Speake Pin (+)
 SPEAKER_PINS		equ		BIT_SPK_MINUS|BIT_SPK_PLUS
-VRAM            	equ     $7000       		; Video RAM GAME_INIT address
+VRAM            	equ     $7000       		; Video RAM base address
 
 ;************************************************************************
 ; Keyboard Map              ADRES   |   D5  D4      D3  D2      D1  D0  |
@@ -39,6 +39,7 @@ KEYS_ROW_0  		equ     $68fe   ;   R   Q       E           W   T   |
 KEYS_ROW_1  		equ     $68fd   ;   F   A       D   CTRL    S   G   |
 KEYS_ROW_2  		equ     $68fb   ;   V   Z       C   SHIFT   X   B   |
 KEYS_ROW_4  		equ     $68ef   ;   M   SPACE   ,           .   N   |
+KEYS_ROW_5  		equ     $68df   ;   7   0       8   -       9   6   |
 KEYS_ROW_6  		equ     $68bf   ;   U   P       I   RETURN  O   Y   |
 ;-----------------------------------|-----------------------------------|
 KEYS_ROW_0F  		equ     $6ffe   ;   R   Q       E           W   T   |
@@ -172,13 +173,17 @@ l7dc1h:
 	call sub_85a9h		;7df2	cd a9 85 	. . . 
 	call sub_8580h		;7df5	cd 80 85 	. . . 
 	call sub_7f37h		;7df8	cd 37 7f 	. 7  
-	ld a,(068dfh)		;7dfb	3a df 68 	: . h 
-	bit 2,a		;7dfe	cb 57 	. W 
-	jr nz,l7dc1h		;7e00	20 bf 	  . 
+; -- check if user press BREAK 
+	ld a,(KEYS_ROW_5)		; select Keyboard row 2 								;7dfb	3a df 68 
+	bit 2,a					; check if key '-' is pressed							;7dfe	cb 57 
+	jr nz,l7dc1h			; no --------------- Continue Game Loop --------------- ;7e00	20 bf 
+; -- key '-' is pressed - can be BREAK if CTRL is also pressed
 	ld a,(KEYS_ROW_1)		; select Keyboard row 1 								;7e02	3a fd 68 
 	bit 2,a					; check if key 'CTRL' is pressed?						;7e05	cb 57 
 	jp z,l8f7ch				; yes - ;7e07	ca 7c 8f 	. | . 
-	jr l7dc1h		;7e0a	18 b5 	. . 
+	jr l7dc1h				; no --------------- Continue Game Loop --------------- ;7e0a	18 b5 
+
+
 sub_7e0ch:
 	call sub_8f76h		;7e0c	cd 76 8f 	. v . 
 	ret z			;7e0f	c8 	. 
@@ -2678,7 +2683,7 @@ GAME_INIT:
 	call CLEAR_SCREEN_GFX	; clear screen - MOde 1 (Gfx)							;8f8c	cd 4b 94 
 	ld hl,TXT_JOYSTICK_Q	; text to display - Joystick Question					;8f8f	21 c5 9a 
 	ld de,VRAM				; dst - screen position (0,0)							;8f92	11 00 70 
-	call sub_9423h		;8f95	cd 23 94 	. # . 
+	call PRINT_TEXT_GFX		; print Joystick Question in Gfx Mode 1					;8f95	cd 23 94 
 l8f98h:
 	xor a					; default 0 - Joystick disabled							;8f98	af 
 	ld (JOY_ENABLE),a		; store in Game Settings variable						;8f99	32 00 78 
@@ -2706,15 +2711,15 @@ l8fcbh:
 	ld sp,BASE_SP			; reset CPU Stack Pointer to base address			;8fcc	31 f0 7c 
 	ld hl,00020h		;8fcf	21 20 00 	!   . 
 	ld (l98abh),hl		;8fd2	22 ab 98 	" . . 
-	call sub_9446h		;8fd5	cd 46 94 	. F . 
-	ld hl,l9581h		;8fd8	21 81 95 	! . . 
+	call CLEAR_SCRBUF_GFX		;8fd5	cd 46 94 	. F . 
+	ld hl,TXT_START_PAGE	; Start/Title Page text								;8fd8	21 81 95
 	ld de,0aa80h		;8fdb	11 80 aa 	. . . 
-	call sub_9423h		;8fde	cd 23 94 	. # . 
+	call PRINT_TEXT_GFX		; print Start Page in Offscreen Buffer				;8fde	cd 23 94 
 	call sub_930eh		;8fe1	cd 0e 93 	. . . 
-	call sub_9446h		;8fe4	cd 46 94 	. F . 
-	ld hl,l95f7h		;8fe7	21 f7 95 	! . . 
+	call CLEAR_SCRBUF_GFX		;8fe4	cd 46 94 	. F . 
+	ld hl,TXT_KEYS_HELP		; Keys Help Page text 								;8fe7	21 f7 95
 	ld de,0aa80h		;8fea	11 80 aa 	. . . 
-	call sub_9423h		;8fed	cd 23 94 	. # . 
+	call PRINT_TEXT_GFX		; print Help page in Offscreen Buffer				;8fed	cd 23 94 
 	call sub_930eh		;8ff0	cd 0e 93 	. . . 
 	call sub_8ff8h		;8ff3	cd f8 8f 	. . . 
 	jr l8fcbh		;8ff6	18 d3 	. . 
@@ -2723,7 +2728,7 @@ sub_8ff8h:
 	call sub_930eh		;8ffb	cd 0e 93 	. . . 
 	ret			;8ffe	c9 	. 
 sub_8fffh:
-	call sub_9446h		;8fff	cd 46 94 	. F . 
+	call CLEAR_SCRBUF_GFX		;8fff	cd 46 94 	. F . 
 	ld hl,l96aeh		;9002	21 ae 96 	! . . 
 	ld de,0aac8h		;9005	11 c8 aa 	. . . 
 	ld a,00ah		;9008	3e 0a 	> . 
@@ -2735,7 +2740,7 @@ l900dh:
 	push de			;900e	d5 	. 
 	push hl			;900f	e5 	. 
 	ld a,(hl)			;9010	7e 	~ 
-	call sub_98e9h		;9011	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;9011	cd e9 98 
 	pop hl			;9014	e1 	. 
 	pop de			;9015	d1 	. 
 	inc hl			;9016	23 	# 
@@ -2748,7 +2753,7 @@ l900dh:
 	inc de			;901e	13 	. 
 	inc de			;901f	13 	. 
 	ld a,03dh		;9020	3e 3d 	> = 
-	call sub_98e9h		;9022	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;9022	cd e9 98 
 	pop de			;9025	d1 	. 
 	ld hl,000bbh		;9026	21 bb 00 	! . . 
 	add hl,de			;9029	19 	. 
@@ -2785,26 +2790,33 @@ l903bh:
 	dec a			;9052	3d 	= 
 	jr nz,l9038h		;9053	20 e3 	  . 
 	ret			;9055	c9 	. 
+
+
+
 l9056h:
-	ld hl,l945eh		;9056	21 5e 94 	! ^ . 
-	or a			;9059	b7 	. 
-	jr z,l9066h		;905a	28 0a 	( . 
-	ld hl,l947dh		;905c	21 7d 94 	! } . 
-	cp 001h		;905f	fe 01 	. . 
-	jr z,l9066h		;9061	28 03 	( . 
-	ld hl,l9499h		;9063	21 99 94 	! . . 
+; -- check end of mission reason
+	ld hl,TXT_ALL_HEL_DESTROYED	; All Helicopters Destroyed text					;9056	21 5e 94
+	or a					; chack if reason 0 									;9059	b7 
+	jr z,l9066h				; yes - show Mission Over screen 						;905a	28 0a 
+	ld hl,TXT_TIME_UP		; Time Up text 											;905c	21 7d 94 
+	cp 1					; check if reason 1 									;905f	fe 01 
+	jr z,l9066h				; yes - show Mission Over screen						;9061	28 03 
+; -- reason > 1 - must be No Prisoners Left to Rescue
+	ld hl,TXT_NO_PRIS_LEFT	; No Prisoners Left To Rescue							;9063	21 99 94 
 l9066h:
-	push hl			;9066	e5 	. 
-	ld hl,00020h		;9067	21 20 00 	!   . 
-	ld (l98abh),hl		;906a	22 ab 98 	" . . 
-	call sub_9446h		;906d	cd 46 94 	. F . 
-	ld hl,l94b9h		;9070	21 b9 94 	! . . 
+	push hl					; save hl - Reason text									;9066	e5
+	ld hl,00020h			;9067	21 20 00 	!   . 
+	ld (l98abh),hl			;906a	22 ab 98 	" . . 
+	call CLEAR_SCRBUF_GFX			;906d	cd 46 94 	. F . 
+; -- print Mission Over screen with reason and Score into Offscreen Buffer
+	ld hl,TXT_MISSION_OVER	; Mission Over text										;9070	21 b9 94
 	ld de,0aa80h		;9073	11 80 aa 	. . . 
-	call sub_9423h		;9076	cd 23 94 	. # . 
-	pop hl			;9079	e1 	. 
-	call sub_9423h		;907a	cd 23 94 	. # . 
-	ld hl,l94d3h		;907d	21 d3 94 	! . . 
-	call sub_9423h		;9080	cd 23 94 	. # . 
+	call PRINT_TEXT_GFX		; print Mission Over text in Offscreen Buffer			;9076	cd 23 94 
+	pop hl				;9079	e1 	. 
+	call PRINT_TEXT_GFX		; print Reason text in Offscreen Buffer					;907a	cd 23 94 
+	ld hl,TXT_YOUR_SCORE	; Your Score Was text									;907d	21 d3 94 
+	call PRINT_TEXT_GFX		; print Your Score Was text in Offscreen Buffer			;9080	cd 23 94 
+; --
 	ld hl,00015h		;9083	21 15 00 	! . . 
 	add hl,de			;9086	19 	. 
 	ex de,hl			;9087	eb 	. 
@@ -2928,13 +2940,13 @@ l9129h:
 	or a			;9137	b7 	. 
 	sbc hl,de		;9138	ed 52 	. R 
 	push hl			;913a	e5 	. 
-	call sub_9446h		;913b	cd 46 94 	. F . 
-	ld hl,l94eah		;913e	21 ea 94 	! . . 
+	call CLEAR_SCRBUF_GFX		;913b	cd 46 94 	. F . 
+	ld hl,TXT_CHAR_TAB	; Characters Table text										;913e	21 ea 94 
 	ld de,0ab40h		;9141	11 40 ab 	. @ . 
 	ld a,005h		;9144	3e 05 	> . 
 l9146h:
 	push af			;9146	f5 	. 
-	call sub_9423h		;9147	cd 23 94 	. # . 
+	call PRINT_TEXT_GFX	; print Character Table into Offscreen Buffer				;9147	cd 23 94 
 	inc hl			;914a	23 	# 
 	push hl			;914b	e5 	. 
 	ld hl,00120h		;914c	21 20 01 	!   . 
@@ -3082,7 +3094,7 @@ l9228h:
 	ld hl,(l920ah)		;9228	2a 0a 92 	* . . 
 	ld (hl),a			;922b	77 	w 
 	ld de,(l920ch)		;922c	ed 5b 0c 92 	. [ . . 
-	call sub_98e9h		;9230	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;9230	cd e9 98 
 	ld a,(l9209h)		;9233	3a 09 92 	: . . 
 	cp 004h		;9236	fe 04 	. . 
 	jr nz,l923fh		;9238	20 05 	  . 
@@ -3111,7 +3123,7 @@ l925eh:
 	ld a,020h		;925e	3e 20 	>   
 	ld de,(l920ch)		;9260	ed 5b 0c 92 	. [ . . 
 	push de			;9264	d5 	. 
-	call sub_98e9h		;9265	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;9265	cd e9 98 
 	ld hl,(l920ah)		;9268	2a 0a 92 	* . . 
 	ld (hl),020h		;926b	36 20 	6   
 	pop de			;926d	d1 	. 
@@ -3130,7 +3142,7 @@ l925eh:
 	ld (l920ch),hl		;9285	22 0c 92 	" . . 
 	ex de,hl			;9288	eb 	. 
 	ld a,020h		;9289	3e 20 	>   
-	call sub_98e9h		;928b	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;928b	cd e9 98 
 	jr l923ah		;928e	18 aa 	. . 
 l9290h:
 	pop hl			;9290	e1 	. 
@@ -3397,7 +3409,7 @@ sub_93ebh:
 sub_93fbh:
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;93fb	3a bf 68 
 	bit 3,a					; check if key 'I' is pressed							;93fe	cb 5f 
-	jp z,SHOW_MANUAL		; yes - show Manual/Instruction pages;9400	ca 4f 9a 	. O . 
+	jp z,SHOW_MANUAL		; yes - show Manual/Instruction pages					;9400	ca 4f 9a
 	bit 4,a					; check if key 'P' is pressed							;9403	cb 67 
 	ret nz					; no ------------ End of Proc (no key) ----------------	;9405	c0 
 ; -- key 'P' is pressed
@@ -3424,47 +3436,56 @@ DELAY_DE:
 	jr nz,DELAY_DE			; no - wait until de = 0								;9420	20 fb 
 	ret						; ------------------- End of Proc --------------------- ;9422	c9
 
+;***********************************************************************************************
+; Print Text on Screen in Graphics Mode 1. Supports CR/LF char (13)
+; IN: hl - null terminated text
+;     de - destination VRAM address
+PRINT_TEXT_GFX:
+	push de					; save de - line start VRAM or VBUF address				;9423	d5 
+.NEXT_CHAR:
+	push hl					; save hl - address of char to print					;9424	e5
+	push de					; save de - destination address							;9425	d5 
+	ld a,(hl)				; a - char to print/draw								;9426	7e
+	or a					; check if 0 - end of textt 							;9427	b7 
+	jr z,.EXIT				; yes ------------ End of Proc ------------------------ ;9428	28 0d 
+	cp 13					; chack if CR/LF char 									;942a	fe 0d
+	jr z,.NEXT_LINE			; yes - move destination address to next line 			;942c	28 0d 
+	call DRAW_CHAR_GFX		; print/draw char on Screen or into BUffer				;942e	cd e9 98 	. . . 
+	pop de					; restore de - destinatin address						;9431	d1 
+	pop hl					; restore hl - text source address						;9432	e1 
+	inc hl					; hl - next char to print/draw							;9433	23
+	inc de					; de - next destination address (4px right)				;9434	13 
+	jr .NEXT_CHAR			; continue until char = 0								;9435	18 ed 
+.EXIT:
+	pop de					; restore de - current destination address				;9437	d1
+	pop hl					; restore hl - end of source text 						;9438	e1 
+	pop de					; restore de - line start destination address 			;9439	d1 
+	ret						; ---------------- End of Proc ------------------------ ;943a	c9 
+.NEXT_LINE:
+	pop de					; de - destination address (just take out from Stack)	;943b	d1 	. 
+	pop de					; de - address of current char to print					;943c	d1 
+	pop hl					; hl - current line start destination address			;943d	e1
+; -- In Gfx Mode 1 screen resolution is 128x64 px. There are 32 bytes per line wher every byte contains 4 pixels 
+;    In order to find addres 6 lines below we have to add 32 * 6 = 192 bytes
+	ld bc,192				; 192 bytes per 6 gfx lines 							;943e	01 c0 00
+	add hl,bc				; calculate new address 6 lines below					;9441	09 
+	ex de,hl				; de - new dst address, hl - address of current char 	;9442	eb 
+	inc hl					; hl - next char to print (skip CR/LF)					;9443	23 
+	jr PRINT_TEXT_GFX		; print next char										;9444	18 dd
 
-sub_9423h:
-	push de			;9423	d5 	. 
-l9424h:
-	push hl			;9424	e5 	. 
-	push de			;9425	d5 	. 
-	ld a,(hl)			;9426	7e 	~ 
-	or a			;9427	b7 	. 
-	jr z,l9437h		;9428	28 0d 	( . 
-	cp 00dh		;942a	fe 0d 	. . 
-	jr z,l943bh		;942c	28 0d 	( . 
-	call sub_98e9h		;942e	cd e9 98 	. . . 
-	pop de			;9431	d1 	. 
-	pop hl			;9432	e1 	. 
-	inc hl			;9433	23 	# 
-	inc de			;9434	13 	. 
-	jr l9424h		;9435	18 ed 	. . 
-l9437h:
-	pop de			;9437	d1 	. 
-	pop hl			;9438	e1 	. 
-	pop de			;9439	d1 	. 
-	ret			;943a	c9 	. 
-l943bh:
-	pop de			;943b	d1 	. 
-	pop de			;943c	d1 	. 
-	pop hl			;943d	e1 	. 
-	ld bc,000c0h		;943e	01 c0 00 	. . . 
-	add hl,bc			;9441	09 	. 
-	ex de,hl			;9442	eb 	. 
-	inc hl			;9443	23 	# 
-	jr sub_9423h		;9444	18 dd 	. . 
-sub_9446h:
-	ld hl,0aa80h		;9446	21 80 aa 	! . . 
-	jr l944eh		;9449	18 03 	. . 
+
+;***********************************************************************************************
+; Clear Offscreen Buffer and set Graphics MODE 1 with default Color Palette
+CLEAR_SCRBUF_GFX:
+	ld hl,0aa80h			; Video Offscreen Buffer 							;9446	21 80 aa 
+	jr CLEAR_GFX			; set Video Graphics Mode 1 and clear RAM			;9449	18 03 
 
 
 ;***********************************************************************************************
 ; Clear Screen and set Graphics MODE 1 with default Color Palette
 CLEAR_SCREEN_GFX:
 	ld hl,VRAM				; screen coord (0,0)px								;944b	21 00 70
-l944eh:
+CLEAR_GFX:
 ; -- set Video Graphics Mode 1
 	ld a,VDG_GFX_COLORS_0	; Video Graphics Mode 1 (128x64)px					;944e	3e 08 
 	ld (IOLATCH),a			; set in hardware register							;9450	32 00 68 
@@ -3477,35 +3498,36 @@ l944eh:
 	ldir					; fill all 2047 bytes with 0						;945b	ed b0 
 	ret						; --------------------- End of Proc --------------- ;945d	c9 
 
-
-l945eh:
+;***********************************************************************************************
+; End of Mission reasons - 3 entries: all Helicopters destrojed, time is over and no prisones left to rescue
+TXT_ALL_HEL_DESTROYED:
 	defb 13										;945e	0d 
 	defb "    ALL HELICOPTER DESTROYED",13,0	;945f	20 20 20 20 41 4c 4c 20 48 45 4c 49 43 4f 50 54 45 52 20 44 45 53 54 52 4f 59 45 44 0d 00
 
 
-l947dh:
+TXT_TIME_UP:
 	defb 13										;947d	0d 
 	defb "      6.00 A.M. - TIME UP",13,0		;947e	20 20 20 20 20 20 36 2e 30 30 20 41 2e 4d 2e 20 2d 20 54 49 4d 45 20 55 50 0d 00
 
-l9499h:
+TXT_NO_PRIS_LEFT:
 	defb 13										;9499	0d 
 	defb "  NO PRISONERS LEFT TO RESCUE",13,0	;949a	20 20 4e 4f 20 50 52 49 53 4f 4e 45 52 53 20 4c 45 46 54 20 54 4f 20 52 45 53 43 55 45 0d 00
 
 
-l94b9h:
+TXT_MISSION_OVER:
 	defb 13										;94b9	0d 
 	defb 13										;94ba	0d 
 	defb "         MISSION OVER",13				;94bb	20 20 20 20 20 20 20 20 20 4d 49 53 53 49 4f 4e 20 4f 56 45 52 0d 
 	defb 13,0									;94d1	0d 00 
 
 
-l94d3h:
+TXT_YOUR_SCORE:
 	defb 13										;94d3	0d 
 	defb 13										;94d4	0d 
 	defb "    YOUR SCORE WAS  ",0				;94d5	20 20 20 20 59 4f 55 52 20 53 43 4f 52 45 20 57 41 53 20 20 00 
 
 
-l94eah:
+TXT_CHAR_TAB:
 	defb "   A    B    C    D    E    F",0		;94ea	20 20 20 41 20 20 20 20 42 20 20 20 20 43 20 20 20 20 44 20 20 20 20 45 20 20 20 20 46 00
 	defb "   G    H    I    J    K    L",0		;9508	20 20 20 47 20 20 20 20 48 20 20 20 20 49 20 20 20 20 4a 20 20 20 20 4b 20 20 20 20 4c 00 
 	defb "   M    N    O    P    Q    R",0		;9526	20 20 20 4d 20 20 20 20 4e 20 20 20 20 4f 20 20 20 20 50 20 20 20 20 51 20 20 20 20 52 00
@@ -3513,7 +3535,7 @@ l94eah:
 	defb "   Y    Z    .   SPC  DEL  END",0		;9562	20 20 20 59 20 20 20 20 5a 20 20 20 20 2e 20 20 20 53 50 43 20 20 44 45 4c 20 20 45 4e 44 00
 
 
-l9581h:
+TXT_START_PAGE:
 	defb 13										;9581	0d 
 	defb 13										;9582	0d 
 	defb "        D    A    W    N",13			;9583	20 20 20 20 20 20 20 20 44 20 20 20 20 41 20 20 20 20 57 20 20 20 20 4e 0d 
@@ -3525,7 +3547,7 @@ l9581h:
 	defb "    PRESS <I> FOR INSTRUCTIONS",0		;95d8	20 20 20 20 50 52 45 53 53 20 3c 49 3e 20 46 4f 52 20 49 4e 53 54 52 55 43 54 49 4f 4e 53 00
 
 
-l95f7h:
+TXT_KEYS_HELP:
 	defb 13										;95f7	0d 
 	defb "    HELICOPTER CONTROL KEYS",13		;95f8	20 20 20 20 48 45 4c 49 43 4f 50 54 45 52 20 43 4f 4e 54 52 4f 4c 20 4b 45 59 53 0d
 	defb 13										;9614	0d 
@@ -3871,7 +3893,7 @@ l9885h:
 	inc hl			;9887	23 	# 
 	ret			;9888	c9 	. 
 sub_9889h:
-	ld hl,l98adh		;9889	21 ad 98 	! . . 
+	ld hl,SPRTAB_DIGITS		;9889	21 ad 98 	! . . 
 	push de			;988c	d5 	. 
 	ld de,00006h		;988d	11 06 00 	. . . 
 	inc a			;9890	3c 	< 
@@ -3900,128 +3922,107 @@ l98a0h:
 l98abh:
 	nop			;98ab	00 	. 
 	nop			;98ac	00 	. 
-l98adh:
-	ld d,h			;98ad	54 	T 
-	ld b,h			;98ae	44 	D 
-	ld b,h			;98af	44 	D 
-	ld b,h			;98b0	44 	D 
-	ld d,h			;98b1	54 	T 
-	nop			;98b2	00 	. 
-	djnz $+82		;98b3	10 50 	. P 
-	djnz l98c7h		;98b5	10 10 	. . 
-	ld d,h			;98b7	54 	T 
-	nop			;98b8	00 	. 
-	ld d,h			;98b9	54 	T 
-	inc b			;98ba	04 	. 
-	ld d,h			;98bb	54 	T 
-	ld b,b			;98bc	40 	@ 
-	ld d,h			;98bd	54 	T 
-	nop			;98be	00 	. 
-	ld d,h			;98bf	54 	T 
-	inc b			;98c0	04 	. 
-	inc d			;98c1	14 	. 
-	inc b			;98c2	04 	. 
-	ld d,h			;98c3	54 	T 
-	nop			;98c4	00 	. 
-	ld b,b			;98c5	40 	@ 
-	ld b,b			;98c6	40 	@ 
-l98c7h:
-	ld b,h			;98c7	44 	D 
-	ld d,h			;98c8	54 	T 
-	inc b			;98c9	04 	. 
-	nop			;98ca	00 	. 
-	ld d,h			;98cb	54 	T 
-	ld b,b			;98cc	40 	@ 
-	ld d,h			;98cd	54 	T 
-	inc b			;98ce	04 	. 
-	ld d,h			;98cf	54 	T 
-	nop			;98d0	00 	. 
-	ld d,h			;98d1	54 	T 
-	ld b,b			;98d2	40 	@ 
-	ld d,h			;98d3	54 	T 
-	ld b,h			;98d4	44 	D 
-	ld d,h			;98d5	54 	T 
-	nop			;98d6	00 	. 
-	ld d,h			;98d7	54 	T 
-	inc b			;98d8	04 	. 
-	inc b			;98d9	04 	. 
-	inc b			;98da	04 	. 
-	inc b			;98db	04 	. 
-	nop			;98dc	00 	. 
-	ld d,h			;98dd	54 	T 
-	ld b,h			;98de	44 	D 
-	ld d,h			;98df	54 	T 
-	ld b,h			;98e0	44 	D 
-	ld d,h			;98e1	54 	T 
-	nop			;98e2	00 	. 
-	ld d,h			;98e3	54 	T 
-	ld b,h			;98e4	44 	D 
-	ld d,h			;98e5	54 	T 
-	inc b			;98e6	04 	. 
-	ld d,h			;98e7	54 	T 
-	nop			;98e8	00 	. 
-sub_98e9h:
-	cp 02eh		;98e9	fe 2e 	. . 
-	jr z,l9924h		;98eb	28 37 	( 7 
-	cp 02ch		;98ed	fe 2c 	. , 
-	jr z,l991dh		;98ef	28 2c 	( , 
-	cp 03dh		;98f1	fe 3d 	. = 
-	jr z,l9916h		;98f3	28 21 	( ! 
-	cp 020h		;98f5	fe 20 	.   
-	jr z,l992bh		;98f7	28 32 	( 2 
-	cp 030h		;98f9	fe 30 	. 0 
-	ret m			;98fb	f8 	. 
-	cp 03ah		;98fc	fe 3a 	. : 
-	jp m,l990eh		;98fe	fa 0e 99 	. . . 
-	cp 041h		;9901	fe 41 	. A 
-	ret m			;9903	f8 	. 
-	cp 05bh		;9904	fe 5b 	. [ 
-	ret p			;9906	f0 	. 
-	sub 040h		;9907	d6 40 	. @ 
-	ld hl,l996ch		;9909	21 6c 99 	! l . 
-	jr l9930h		;990c	18 22 	. " 
-l990eh:
-	ld hl,l98adh		;990e	21 ad 98 	! . . 
-	sub 02fh		;9911	d6 2f 	. / 
-	jp l9930h		;9913	c3 30 99 	. 0 . 
-l9916h:
-	ld a,001h		;9916	3e 01 	> . 
-	ld hl,l9a08h		;9918	21 08 9a 	! . . 
-	jr l9930h		;991b	18 13 	. . 
-l991dh:
-	ld a,001h		;991d	3e 01 	> . 
-	ld hl,l9a14h		;991f	21 14 9a 	! . . 
-	jr l9930h		;9922	18 0c 	. . 
-l9924h:
-	ld a,001h		;9924	3e 01 	> . 
-	ld hl,l9a0eh		;9926	21 0e 9a 	! . . 
-	jr l9930h		;9929	18 05 	. . 
-l992bh:
-	ld a,001h		;992b	3e 01 	> . 
-	ld hl,l9a1ah		;992d	21 1a 9a 	! . . 
-l9930h:
-	push de			;9930	d5 	. 
-	ld de,00006h		;9931	11 06 00 	. . . 
-l9934h:
-	dec a			;9934	3d 	= 
-	jr z,l993ah		;9935	28 03 	( . 
-	add hl,de			;9937	19 	. 
-	jr l9934h		;9938	18 fa 	. . 
-l993ah:
-	pop de			;993a	d1 	. 
-	ex de,hl			;993b	eb 	. 
-	ld bc,00020h		;993c	01 20 00 	.   . 
-	ld a,006h		;993f	3e 06 	> . 
-l9941h:
-	push af			;9941	f5 	. 
-	ld a,(de)			;9942	1a 	. 
-	ld (hl),a			;9943	77 	w 
-	inc de			;9944	13 	. 
-	add hl,bc			;9945	09 	. 
-	pop af			;9946	f1 	. 
-	dec a			;9947	3d 	= 
-	jr nz,l9941h		;9948	20 f7 	  . 
-	ret			;994a	c9 	. 
+
+
+;***********************************************************************************************
+; Sprites for Digits '0'..'9' - 4x6 px (1x6 bytes)
+SPRTAB_DIGITS:
+	defb $54,$44,$44,$44,$54,$00		; 0							;98ad	54 44 44 44 54 00
+	defb $10,$50,$10,$10,$54,$00		; 1							;98b3	10 50 10 10 54 00 
+	defb $54,$04,$54,$40,$54,$00		; 2							;98b9	54 04 54 40 54 00 
+	defb $54,$04,$14,$04,$54,$00		; 3							;98bf	54 04 14 04 54 00
+	defb $40,$40,$44,$54,$04,$00		; 4							;98c5	40 40 44 54 04 00 
+	defb $54,$40,$54,$04,$54,$00		; 5 						;98cb	54 40 54 04 54 00 
+	defb $54,$40,$54,$44,$54,$00		; 6 						;98d1	54 40 54 44 54 00 
+	defb $54,$04,$04,$04,$04,$00		; 7 						;98d7	54 04 04 04 04 00 
+	defb $54,$44,$54,$44,$54,$00		; 8 						;98dd	54 44 54 44 54 00 
+	defb $54,$44,$54,$04,$54,$00		; 9 						;98e3	54 44 54 04 54 00 
+
+
+;***********************************************************************************************
+; Print/Draw one Character on Screen or into Offscreen Buffer in Graphics Mode 1. 
+; IN: a - char to print/draw
+;     de - destination VRAM or VBUF address
+DRAW_CHAR_GFX:
+; -- first check special chars 
+	cp '.'				; chack if char '.' (dot)									;98e9	fe 2e 
+	jr z,DRAW_GFX_DOT	; yes - draw '.' 											;98eb	28 37
+	cp ','				; check if char ',' (comma)									;98ed	fe 2c
+	jr z,DRAW_GFX_COMMA	; yes - draw ',' (comma)									;98ef	28 2c
+	cp '='				; check if char '=' (equal)									;98f1	fe 3d 
+	jr z,DRAW_GFX_EQUAL	; yes - draw char '=' (equal)								;98f3	28 21
+	cp ' '				; check if char ' ' (space)									;98f5	fe 20 
+	jr z,DRAW_GFX_SPACE	; yes - draw char ' ' (space)								;98f7	28 32
+; -- next range of chars are digits
+	cp '0'				; check if char code < '0'									;98f9	fe 30 
+	ret m				; yes ------- End of Proc (not supported char) ------------ ;98fb	f8 
+	cp '9'+1			; check if char is digit '0'..'9'							;98fc	fe 3a
+	jp m,DRAW_GFX_DIGIT	; yes - draw digit 											;98fe	fa 0e 99
+; -- next range of chars are letters 'A'..'Z'
+	cp 'A'				; check if char code < 'A'									;9901	fe 41 
+	ret m				; yes ------- End of Proc (not supported char) ------------ ;9903	f8  
+	cp 'Z'+1			; check if char is letter 'A'..'Z'							;9904	fe 5b
+	ret p				; no -------_ End of Proc (not supported char) ------------ ;9906	f0 	. 
+DRAW_GFX_LETTER
+	sub $40				; shift a range to 1..26 for 'A'..'Z'						;9907	d6 40 
+	ld hl,SPRTAB_LETTERS		; Sprites Table for Letters									;9909	21 6c 99 
+	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;990c	18 22 
+DRAW_GFX_DIGIT:
+	ld hl,SPRTAB_DIGITS	; Sprites Table for Digits									;990e	21 ad 98 
+	sub 02fh			; shift a range to 1..10 for '0'..'9'						;9911	d6 2f 
+	jp DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9913	c3 30 99 
+DRAW_GFX_EQUAL:
+	ld a,1				; set index in Sprites Table to 1 							;9916	3e 01 
+	ld hl,SPRTAB_EQUAL	; Sprites Table for Char '=' (1 entry)						;9918	21 08 9a 
+	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;991b	18 13 
+DRAW_GFX_COMMA:
+	ld a,1				; set index in Sprites Table to 1 							;991d	3e 01 
+	ld hl,SPRTAB_COMMA		; Sprites Table for Char ',' (1 entry)						;991f	21 14 9a  
+	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9922	18 0c 
+DRAW_GFX_DOT:
+	ld a,1				; set index in Sprites Table to 1 							;9924	3e 01 
+	ld hl,SPRTAB_DOT	; Sprites Table for Char '.' (1 entry)						;9926	21 0e 9a 
+	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9929	18 05 
+DRAW_GFX_SPACE:
+	ld a,1				; set index in Sprites Table to 1 							;992b	3e 01
+	ld hl,SPRTAB_SPACE		; Sprites Table for Char 'SPACE' (1 entry)					;992d	21 1a 9a 
+
+;***********************************************************************************************
+; Print/Draw one Character on Screen or into Offscreen Buffer in Graphics Mode 1. 
+; Character is drawn as Sprite from predefined table (hl) chosen by index (a)
+; IN: hl - Sprites Table with data defined for chars
+;     de - destination VRAM or VBUF address
+;     a - index of char in Table in range:
+;         1..26 for Letters
+;         1..10 for Digits
+;         1..1 for chars '=',',','.','SPACE' 
+DRAW_CHAR_SPRITE:
+	push de				; save de - destinadion VRAM or VBUF address				;9930	d5 
+; -- calculate sprite address in Table: hl = base address + (a-1) * 6 bytes per entry
+	ld de,6				; de - 6 bytes per char sprite in Table						;9931	11 06 00
+.NEXT:
+	dec a				; decrement index - check if 0								;9934	3d 
+	jr z,.DRAW_SPRITE	; yes - address found - draw sprite							;9935	28 03 
+	add hl,de			; add 6 bytes - hl points to next entry data				;9937	19 
+	jr .NEXT			; continue until a = 0 										;9938	18 fa 
+; -- hl points to 6 bytes data definition for char
+.DRAW_SPRITE:
+	pop de				; restore de - destinadion VRAM or VBUF address				;993a	d1 
+	ex de,hl			; hl - destination address, de - source data				;993b	eb 
+	ld bc,32			; 32 bytes per screen line									;993c	01 20 00 
+	ld a,6				; a - line/bytes counter (6 lines height)					;993f	3e 06 
+.NEXT_BYTE:
+	push af				; save a 													;9941	f5 
+	ld a,(de)			; a - 4 pixels from sprite									;9942	1a 
+	ld (hl),a			; store into destination address							;9943	77 
+	inc de				; incrase source address - next byte						;9944	13 
+	add hl,bc			; add 32 bytes to destination - next line					;9945	09 
+	pop af				; restore a - line counter									;9946	f1 
+	dec a				; decrement and check if 0									;9947	3d 
+	jr nz,.NEXT_BYTE	; no - continue draw all 6 bytes in 6 lines					;9948	20 f7 
+	ret					; --------------- End of Proc ----------------------------- ;994a	c9 
+
+
 l994bh:
 	push de			;994b	d5 	. 
 l994ch:
@@ -4032,7 +4033,7 @@ l994ch:
 	jr z,l9961h		;9952	28 0d 	( . 
 	push hl			;9954	e5 	. 
 	push de			;9955	d5 	. 
-	call sub_98e9h		;9956	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX	; print/draw char on Screen									;9956	cd e9 98 
 	pop de			;9959	d1 	. 
 	pop hl			;995a	e1 	. 
 	inc de			;995b	13 	. 
@@ -4050,186 +4051,62 @@ l9961h:
 	pop hl			;9968	e1 	. 
 	inc hl			;9969	23 	# 
 	jr l994bh		;996a	18 df 	. . 
-l996ch:
-	djnz l99b2h		;996c	10 44 	. D 
-	ld d,h			;996e	54 	T 
-	ld b,h			;996f	44 	D 
-	ld b,h			;9970	44 	D 
-	nop			;9971	00 	. 
-	ld d,b			;9972	50 	P 
-	ld b,h			;9973	44 	D 
-	ld d,b			;9974	50 	P 
-	ld b,h			;9975	44 	D 
-	ld d,b			;9976	50 	P 
-	nop			;9977	00 	. 
-	djnz l99beh		;9978	10 44 	. D 
-	ld b,b			;997a	40 	@ 
-	ld b,h			;997b	44 	D 
-	djnz l997eh		;997c	10 00 	. . 
-l997eh:
-	ld d,b			;997e	50 	P 
-	ld b,h			;997f	44 	D 
-	ld b,h			;9980	44 	D 
-	ld b,h			;9981	44 	D 
-	ld d,b			;9982	50 	P 
-	nop			;9983	00 	. 
-	ld d,h			;9984	54 	T 
-	ld b,b			;9985	40 	@ 
-	ld d,b			;9986	50 	P 
-	ld b,b			;9987	40 	@ 
-	ld d,h			;9988	54 	T 
-	nop			;9989	00 	. 
-	ld d,h			;998a	54 	T 
-	ld b,b			;998b	40 	@ 
-	ld d,b			;998c	50 	P 
-	ld b,b			;998d	40 	@ 
-	ld b,b			;998e	40 	@ 
-	nop			;998f	00 	. 
-	djnz l99d6h		;9990	10 44 	. D 
-	ld b,b			;9992	40 	@ 
-	inc d			;9993	14 	. 
-	inc b			;9994	04 	. 
-	nop			;9995	00 	. 
-	ld b,h			;9996	44 	D 
-	ld b,h			;9997	44 	D 
-	ld d,h			;9998	54 	T 
-	ld b,h			;9999	44 	D 
-	ld b,h			;999a	44 	D 
-	nop			;999b	00 	. 
-	ld d,h			;999c	54 	T 
-	djnz l99afh		;999d	10 10 	. . 
-	djnz l99f5h		;999f	10 54 	. T 
-	nop			;99a1	00 	. 
-	inc b			;99a2	04 	. 
-	inc b			;99a3	04 	. 
-	inc b			;99a4	04 	. 
-	ld b,h			;99a5	44 	D 
-	djnz l99a8h		;99a6	10 00 	. . 
-l99a8h:
-	ld b,h			;99a8	44 	D 
-	ld b,h			;99a9	44 	D 
-	ld d,b			;99aa	50 	P 
-	ld b,h			;99ab	44 	D 
-	ld b,h			;99ac	44 	D 
-	nop			;99ad	00 	. 
-	ld b,b			;99ae	40 	@ 
-l99afh:
-	ld b,b			;99af	40 	@ 
-	ld b,b			;99b0	40 	@ 
-	ld b,b			;99b1	40 	@ 
-l99b2h:
-	ld d,h			;99b2	54 	T 
-	nop			;99b3	00 	. 
-	ld b,h			;99b4	44 	D 
-	ld d,h			;99b5	54 	T 
-	ld b,h			;99b6	44 	D 
-	ld b,h			;99b7	44 	D 
-	ld b,h			;99b8	44 	D 
-	nop			;99b9	00 	. 
-	ld b,h			;99ba	44 	D 
-	ld d,h			;99bb	54 	T 
-	ld d,h			;99bc	54 	T 
-	ld d,h			;99bd	54 	T 
-l99beh:
-	ld b,h			;99be	44 	D 
-	nop			;99bf	00 	. 
-	djnz l9a06h		;99c0	10 44 	. D 
-	ld b,h			;99c2	44 	D 
-	ld b,h			;99c3	44 	D 
-	djnz l99c6h		;99c4	10 00 	. . 
-l99c6h:
-	ld d,b			;99c6	50 	P 
-	ld b,h			;99c7	44 	D 
-	ld d,b			;99c8	50 	P 
-	ld b,b			;99c9	40 	@ 
-	ld b,b			;99ca	40 	@ 
-	nop			;99cb	00 	. 
-	djnz l9a12h		;99cc	10 44 	. D 
-	ld b,h			;99ce	44 	D 
-	ld d,h			;99cf	54 	T 
-	inc b			;99d0	04 	. 
-	nop			;99d1	00 	. 
-	ld d,b			;99d2	50 	P 
-	ld b,h			;99d3	44 	D 
-	ld d,b			;99d4	50 	P 
-	ld b,h			;99d5	44 	D 
-l99d6h:
-	ld b,h			;99d6	44 	D 
-	nop			;99d7	00 	. 
-	inc d			;99d8	14 	. 
-	ld b,b			;99d9	40 	@ 
-	djnz $+6		;99da	10 04 	. . 
-	ld d,b			;99dc	50 	P 
-	nop			;99dd	00 	. 
-	ld d,h			;99de	54 	T 
-	djnz l99f1h		;99df	10 10 	. . 
-	djnz l99f3h		;99e1	10 10 	. . 
-	nop			;99e3	00 	. 
-	ld b,h			;99e4	44 	D 
-	ld b,h			;99e5	44 	D 
-	ld b,h			;99e6	44 	D 
-	ld b,h			;99e7	44 	D 
-	djnz l99eah		;99e8	10 00 	. . 
-l99eah:
-	ld b,h			;99ea	44 	D 
-	ld b,h			;99eb	44 	D 
-	ld b,h			;99ec	44 	D 
-	djnz $+18		;99ed	10 10 	. . 
-	nop			;99ef	00 	. 
-	ld b,h			;99f0	44 	D 
-l99f1h:
-	ld b,h			;99f1	44 	D 
-	ld b,h			;99f2	44 	D 
-l99f3h:
-	ld d,h			;99f3	54 	T 
-	ld b,h			;99f4	44 	D 
-l99f5h:
-	nop			;99f5	00 	. 
-	ld b,h			;99f6	44 	D 
-	ld b,h			;99f7	44 	D 
-	defb $10,$44		;99f8	10 44 	. D 
-	ld b,h			;99fa	44 	D 
-	nop			;99fb	00 	. 
-	ld b,h			;99fc	44 	D 
-	ld b,h			;99fd	44 	D 
-	djnz l9a10h		;99fe	10 10 	. . 
-	djnz l9a02h		;9a00	10 00 	. . 
-l9a02h:
-	ld d,h			;9a02	54 	T 
-	inc b			;9a03	04 	. 
-	defb $10,$40		;9a04	10 40 	. @ 
-l9a06h:
-	ld d,h			;9a06	54 	T 
-	nop			;9a07	00 	. 
-l9a08h:
-	nop			;9a08	00 	. 
-	ld d,h			;9a09	54 	T 
-	nop			;9a0a	00 	. 
-	ld d,h			;9a0b	54 	T 
-	nop			;9a0c	00 	. 
-	nop			;9a0d	00 	. 
-l9a0eh:
-	nop			;9a0e	00 	. 
-	nop			;9a0f	00 	. 
-l9a10h:
-	nop			;9a10	00 	. 
-	ld d,b			;9a11	50 	P 
-l9a12h:
-	ld d,b			;9a12	50 	P 
-	nop			;9a13	00 	. 
-l9a14h:
-	nop			;9a14	00 	. 
-	nop			;9a15	00 	. 
-	nop			;9a16	00 	. 
-	ld d,b			;9a17	50 	P 
-	djnz l9a1ah		;9a18	10 00 	. . 
-l9a1ah:
-	nop			;9a1a	00 	. 
-	nop			;9a1b	00 	. 
-	nop			;9a1c	00 	. 
-	nop			;9a1d	00 	. 
-	nop			;9a1e	00 	. 
-	nop			;9a1f	00 	. 
+
+
+;***********************************************************************************************
+; Sprites for Letters 'A'..'Z' - 4x6 px (1x6 bytes)
+SPRTAB_LETTERS:
+
+	defb $10,$44,$54,$44,$44,$00		; A 						;996c	10 44 54 44 44 00 
+	defb $50,$44,$50,$44,$50,$00		; B 						;9972	50 44 50 44 50 00 
+	defb $10,$44,$40,$44,$10,$00		; C 						;9978	10 44 40 44 10 00 
+	defb $50,$44,$44,$44,$50,$00		; D 						;997e	50 44 44 44 50 00 
+	defb $54,$40,$50,$40,$54,$00		; E 						;9984	54 40 50 40 54 00 
+	defb $54,$40,$50,$40,$40,$00		; F							;998a	54 40 50 40 40 00 
+	defb $10,$44,$40,$14,$04,$00		; G 						;9990	10 44 40 14 04 00 
+	defb $44,$44,$54,$44,$44,$00		; H							;9996	44 44 54 44 44 00 
+	defb $54,$10,$10,$10,$54,$00		; I							;999c	54 10 10 10 54 00 
+	defb $04,$04,$04,$44,$10,$00		; J							;99a2	04 04 04 44 10 00 
+	defb $44,$44,$50,$44,$44,$00		; K							;99a8	44 44 50 44 44 00
+	defb $40,$40,$40,$40,$54,$00		; L							;99ae	40 40 40 40 54 00 
+	defb $44,$54,$44,$44,$44,$00		; M							;99b4	44 54 44 44 44 00 
+	defb $44,$54,$54,$54,$44,$00		; N							;99ba	44 54 54 54 44 00 
+	defb $10,$44,$44,$44,$10,$00		; O 						;99c0	10 44 44 44 10 00 
+	defb $50,$44,$50,$40,$40,$00		; P							;99c6	50 44 50 40 40 00
+	defb $10,$44,$44,$54,$04,$00		; Q 						;99cc	10 44 44 54 04 00 
+	defb $50,$44,$50,$44,$44,$00		; R							;99d2	50 44 50 44 44 00
+	defb $14,$40,$10,$04,$50,$00		; S							;99d8	14 40 10 04 50 00
+	defb $54,$10,$10,$10,$10,$00		; T							;99de	54 10 10 10 10 00 
+	defb $44,$44,$44,$44,$10,$00		; U							;99e4	44 44 44 44 10 00 
+	defb $44,$44,$44,$10,$10,$00		; V							;99ea	44 44 44 10 10 00
+	defb $44,$44,$44,$54,$44,$00		; W							;99f0	44 44 44 54 44 00 
+	defb $44,$44,$10,$44,$44,$00		; X							;99f6	44 44 10 44 44 00 
+	defb $44,$44,$10,$10,$10,$00		; Y							;99fc	44 44 10 10 10 00 
+	defb $54,$04,$10,$40,$54,$00		; Z							;9a02	54 04 10 40 54 00 
+
+;***********************************************************************************************
+; Sprite for Character '=' - 4x6 px (1x6 bytes)
+SPRTAB_EQUAL:
+
+	defb $00,$54,$00,$54,$00,$00		; = 						;9a08	00 54 00 54 00 00 
+
+;***********************************************************************************************
+; Sprite for Character '.' (dot) - 4x6 px (1x6 bytes)
+SPRTAB_DOT:
+
+	defb $00,$00,$00,$50,$50,$00		; . (dot)					;9a0e	00 00 00 50 50 00
+
+;***********************************************************************************************
+; Sprite for Character ',' (comma) - 4x6 px (1x6 bytes)
+SPRTAB_COMMA:
+	
+	defb $00,$00,$00,$50,$10,$00		; , (comma)					;9a14	00 00 00 50 10 00 
+
+;***********************************************************************************************
+; Sprite for Character ' ' (space) - 4x6 px (1x6 bytes)
+SPRTAB_SPACE:
+	
+	defb $00,$00,$00,$00,$00,$00		;   (space)					;9a1a	00 00 00 00 00 00 
 
 ;***********************************************************************************************
 ; Clear Screen and set Graphics MODE 0 with default Color Palette
@@ -4275,7 +4152,9 @@ PRINT_TEXT:
 	inc hl					; hl - next char to display (skip CR/LF)				;9a4c	23 
 	jr PRINT_TEXT			; print next char										;9a4d	18 e3 
 
-
+;***********************************************************************************************
+; Print Manual/Instruction Pages in sequential order.
+; After every Page display prompt and wait for player to press C to continue.
 SHOW_MANUAL:
 	call CLEAR_SCREEN_TXT	; clear screen - Mode 0 (TXT)							;9a4f	cd 20 9a
 	ld hl,TXT_MANUAL_PAGE1	; instruction text - Page 1								;9a52	21 d8 9a 
