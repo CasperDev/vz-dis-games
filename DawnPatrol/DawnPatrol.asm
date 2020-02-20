@@ -3927,6 +3927,7 @@ l98abh:
 ;***********************************************************************************************
 ; Sprites for Digits '0'..'9' - 4x6 px (1x6 bytes)
 SPRTAB_DIGITS:
+
 	defb $54,$44,$44,$44,$54,$00		; 0							;98ad	54 44 44 44 54 00
 	defb $10,$50,$10,$10,$54,$00		; 1							;98b3	10 50 10 10 54 00 
 	defb $54,$04,$54,$40,$54,$00		; 2							;98b9	54 04 54 40 54 00 
@@ -3946,44 +3947,44 @@ SPRTAB_DIGITS:
 DRAW_CHAR_GFX:
 ; -- first check special chars 
 	cp '.'				; chack if char '.' (dot)									;98e9	fe 2e 
-	jr z,DRAW_GFX_DOT	; yes - draw '.' 											;98eb	28 37
+	jr z,.DOT			; yes - draw '.' 											;98eb	28 37
 	cp ','				; check if char ',' (comma)									;98ed	fe 2c
-	jr z,DRAW_GFX_COMMA	; yes - draw ',' (comma)									;98ef	28 2c
+	jr z,.COMMA			; yes - draw ',' (comma)									;98ef	28 2c
 	cp '='				; check if char '=' (equal)									;98f1	fe 3d 
-	jr z,DRAW_GFX_EQUAL	; yes - draw char '=' (equal)								;98f3	28 21
+	jr z,.EQUAL_SIGN	; yes - draw char '=' (equal)								;98f3	28 21
 	cp ' '				; check if char ' ' (space)									;98f5	fe 20 
-	jr z,DRAW_GFX_SPACE	; yes - draw char ' ' (space)								;98f7	28 32
+	jr z,.SPACE			; yes - draw char ' ' (space)								;98f7	28 32
 ; -- next range of chars are digits
 	cp '0'				; check if char code < '0'									;98f9	fe 30 
 	ret m				; yes ------- End of Proc (not supported char) ------------ ;98fb	f8 
 	cp '9'+1			; check if char is digit '0'..'9'							;98fc	fe 3a
-	jp m,DRAW_GFX_DIGIT	; yes - draw digit 											;98fe	fa 0e 99
+	jp m,.DIGITS		; yes - draw digit 											;98fe	fa 0e 99
 ; -- next range of chars are letters 'A'..'Z'
 	cp 'A'				; check if char code < 'A'									;9901	fe 41 
 	ret m				; yes ------- End of Proc (not supported char) ------------ ;9903	f8  
 	cp 'Z'+1			; check if char is letter 'A'..'Z'							;9904	fe 5b
 	ret p				; no -------_ End of Proc (not supported char) ------------ ;9906	f0 	. 
-DRAW_GFX_LETTER
+.LETTERS
 	sub $40				; shift a range to 1..26 for 'A'..'Z'						;9907	d6 40 
-	ld hl,SPRTAB_LETTERS		; Sprites Table for Letters									;9909	21 6c 99 
+	ld hl,SPRTAB_LETTERS; Sprites Table for Letters									;9909	21 6c 99 
 	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;990c	18 22 
-DRAW_GFX_DIGIT:
+.DIGITS:
 	ld hl,SPRTAB_DIGITS	; Sprites Table for Digits									;990e	21 ad 98 
 	sub 02fh			; shift a range to 1..10 for '0'..'9'						;9911	d6 2f 
 	jp DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9913	c3 30 99 
-DRAW_GFX_EQUAL:
+.EQUAL_SIGN:
 	ld a,1				; set index in Sprites Table to 1 							;9916	3e 01 
 	ld hl,SPRTAB_EQUAL	; Sprites Table for Char '=' (1 entry)						;9918	21 08 9a 
 	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;991b	18 13 
-DRAW_GFX_COMMA:
+.COMMA:
 	ld a,1				; set index in Sprites Table to 1 							;991d	3e 01 
 	ld hl,SPRTAB_COMMA		; Sprites Table for Char ',' (1 entry)						;991f	21 14 9a  
 	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9922	18 0c 
-DRAW_GFX_DOT:
+.DOT:
 	ld a,1				; set index in Sprites Table to 1 							;9924	3e 01 
 	ld hl,SPRTAB_DOT	; Sprites Table for Char '.' (1 entry)						;9926	21 0e 9a 
 	jr DRAW_CHAR_SPRITE	; draw char sprite from Table 								;9929	18 05 
-DRAW_GFX_SPACE:
+.SPACE:
 	ld a,1				; set index in Sprites Table to 1 							;992b	3e 01
 	ld hl,SPRTAB_SPACE		; Sprites Table for Char 'SPACE' (1 entry)					;992d	21 1a 9a 
 
