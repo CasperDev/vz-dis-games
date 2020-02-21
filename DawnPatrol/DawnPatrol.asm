@@ -70,7 +70,7 @@ ROTATE				equ		5		; bit 5 in input bitmask variable
 ;***********************************************************************************************
 	org	$7d00
 MAIN	
-	jp JMP_GAME_INIT				; jump to GAME_INIT									;7d00	c3 82 8f 
+	jp JMP_GAME_INIT				; jump to GAME_INIT	via JUMP_TABLE			;7d00	c3 82 8f 
 
 
 l7d03h:
@@ -2680,21 +2680,22 @@ sub_8f85h:
 GAME_INIT:
 	di						; disable interrupts									;8f88	f3 
 	ld sp,BASE_SP			; reset CPU Stack Pointer to base address				;8f89	31 f0 7c 
+;-- set Gfx Mode, clear screen and 
 	call CLEAR_SCREEN_GFX	; clear screen - MOde 1 (Gfx)							;8f8c	cd 4b 94 
 	ld hl,TXT_JOYSTICK_Q	; text to display - Joystick Question					;8f8f	21 c5 9a 
 	ld de,VRAM				; dst - screen position (0,0)							;8f92	11 00 70 
 	call PRINT_TEXT_GFX		; print Joystick Question in Gfx Mode 1					;8f95	cd 23 94 
-l8f98h:
+.WAIT_FOR_KEY:
 	xor a					; default 0 - Joystick disabled							;8f98	af 
 	ld (JOY_ENABLE),a		; store in Game Settings variable						;8f99	32 00 78 
 	ld a,(KEYS_ROW_4)		; select Keyboard row 4 								;8f9c	3a ef 68
 	bit 0,a					; check if key 'N' is pressed							;8f9f	cb 47 
-	jp z,l8fb1h				; yes - ;8fa1	ca b1 8f 	. . . 
+	jp z,l8fb1h				; yes - continue initialization							;8fa1	ca b1 8f 
 	ld a,1					; value 1 - Joystick Enabled							;8fa4	3e 01 
 	ld (JOY_ENABLE),a		; store in Game Settings variable						;8fa6	32 00 78 
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;8fa9	3a bf 68 
 	bit 0,a					; check if key 'Y' is pressed							;8fac	cb 47 
-	jp nz,l8f98h			; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
+	jp nz,.WAIT_FOR_KEY		; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
 l8fb1h:
 	ld hl,l96e0h		;8fb1	21 e0 96 	! . . 
 	ld de,l96e1h		;8fb4	11 e1 96 	. . . 
@@ -2707,7 +2708,7 @@ l8fb1h:
 	ld (hl),02eh		;8fc7	36 2e 	6 . 
 	ldir		;8fc9	ed b0 	. . 
 l8fcbh:
-	di			;8fcb	f3 	. 
+	di						;8fcb	f3 	. 
 	ld sp,BASE_SP			; reset CPU Stack Pointer to base address			;8fcc	31 f0 7c 
 	ld hl,00020h		;8fcf	21 20 00 	!   . 
 	ld (l98abh),hl		;8fd2	22 ab 98 	" . . 
@@ -3439,18 +3440,18 @@ DELAY_DE:
 ;***********************************************************************************************
 ; Print Text on Screen in Graphics Mode 1. Supports CR/LF char (13)
 ; IN: hl - null terminated text
-;     de - destination VRAM address
+;     de - destination VRAM or VBUF address
 PRINT_TEXT_GFX:
 	push de					; save de - line start VRAM or VBUF address				;9423	d5 
 .NEXT_CHAR:
 	push hl					; save hl - address of char to print					;9424	e5
 	push de					; save de - destination address							;9425	d5 
 	ld a,(hl)				; a - char to print/draw								;9426	7e
-	or a					; check if 0 - end of textt 							;9427	b7 
+	or a					; check if 0 - end of text 								;9427	b7 
 	jr z,.EXIT				; yes ------------ End of Proc ------------------------ ;9428	28 0d 
 	cp 13					; chack if CR/LF char 									;942a	fe 0d
 	jr z,.NEXT_LINE			; yes - move destination address to next line 			;942c	28 0d 
-	call DRAW_CHAR_GFX		; print/draw char on Screen or into BUffer				;942e	cd e9 98 	. . . 
+	call DRAW_CHAR_GFX		; print/draw char on Screen or into Buffer				;942e	cd e9 98 	. . . 
 	pop de					; restore de - destinatin address						;9431	d1 
 	pop hl					; restore hl - text source address						;9432	e1 
 	inc hl					; hl - next char to print/draw							;9433	23
@@ -3470,7 +3471,7 @@ PRINT_TEXT_GFX:
 	ld bc,192				; 192 bytes per 6 gfx lines 							;943e	01 c0 00
 	add hl,bc				; calculate new address 6 lines below					;9441	09 
 	ex de,hl				; de - new dst address, hl - address of current char 	;9442	eb 
-	inc hl					; hl - next char to print (skip CR/LF)					;9443	23 
+	inc hl					; hl - next char to print (after CR/LF)					;9443	23 
 	jr PRINT_TEXT_GFX		; print next char										;9444	18 dd
 
 
@@ -3566,7 +3567,6 @@ l96afh:
 	nop			;96af	00 	. 
 	nop			;96b0	00 	. 
 	nop			;96b1	00 	. 
-l96b2h:
 	nop			;96b2	00 	. 
 	nop			;96b3	00 	. 
 	nop			;96b4	00 	. 
@@ -3581,19 +3581,15 @@ l96b2h:
 	nop			;96bd	00 	. 
 	nop			;96be	00 	. 
 	nop			;96bf	00 	. 
-l96c0h:
 	nop			;96c0	00 	. 
 	nop			;96c1	00 	. 
-l96c2h:
 	nop			;96c2	00 	. 
 	nop			;96c3	00 	. 
 	nop			;96c4	00 	. 
 	nop			;96c5	00 	. 
 	nop			;96c6	00 	. 
 	nop			;96c7	00 	. 
-l96c8h:
 	nop			;96c8	00 	. 
-l96c9h:
 	nop			;96c9	00 	. 
 	nop			;96ca	00 	. 
 	nop			;96cb	00 	. 
@@ -3606,7 +3602,6 @@ l96c9h:
 	nop			;96d2	00 	. 
 	nop			;96d3	00 	. 
 	nop			;96d4	00 	. 
-l96d5h:
 	nop			;96d5	00 	. 
 l96d6h:
 	nop			;96d6	00 	. 
@@ -3615,7 +3610,6 @@ l96d6h:
 	nop			;96d9	00 	. 
 	nop			;96da	00 	. 
 	nop			;96db	00 	. 
-l96dch:
 	nop			;96dc	00 	. 
 	nop			;96dd	00 	. 
 	nop			;96de	00 	. 
@@ -3626,7 +3620,6 @@ l96e1h:
 	nop			;96e1	00 	. 
 	nop			;96e2	00 	. 
 	nop			;96e3	00 	. 
-l96e4h:
 	nop			;96e4	00 	. 
 	nop			;96e5	00 	. 
 	nop			;96e6	00 	. 
@@ -4023,35 +4016,42 @@ DRAW_CHAR_SPRITE:
 	jr nz,.NEXT_BYTE	; no - continue draw all 6 bytes in 6 lines					;9948	20 f7 
 	ret					; --------------- End of Proc ----------------------------- ;994a	c9 
 
-
-l994bh:
-	push de			;994b	d5 	. 
-l994ch:
-	ld a,(hl)			;994c	7e 	~ 
-	or a			;994d	b7 	. 
-	jr z,l995fh		;994e	28 0f 	( . 
-	cp 00dh		;9950	fe 0d 	. . 
-	jr z,l9961h		;9952	28 0d 	( . 
-	push hl			;9954	e5 	. 
-	push de			;9955	d5 	. 
-	call DRAW_CHAR_GFX	; print/draw char on Screen									;9956	cd e9 98 
-	pop de			;9959	d1 	. 
-	pop hl			;995a	e1 	. 
-	inc de			;995b	13 	. 
-	inc hl			;995c	23 	# 
-	jr l994ch		;995d	18 ed 	. . 
-l995fh:
-	pop de			;995f	d1 	. 
-	ret			;9960	c9 	. 
-l9961h:
-	pop de			;9961	d1 	. 
-	push hl			;9962	e5 	. 
-	ld hl,000c0h		;9963	21 c0 00 	! . . 
-	add hl,de			;9966	19 	. 
-	ex de,hl			;9967	eb 	. 
-	pop hl			;9968	e1 	. 
-	inc hl			;9969	23 	# 
-	jr l994bh		;996a	18 df 	. . 
+;***********************************************************************************************
+; Not used DEAD code - replaced by PRINT_TEXT_GFX routine.
+; The only difference is way of using CPU Stack. Functionally the same.
+; Print Text on Screen in Graphics Mode 1. Supports CR/LF char (13)
+; IN: hl - null terminated text
+;     de - destination VRAM or VBUF address
+__PRINT_TEXT_GFX:
+	push de				; save de - line start VRAM or VBUF address				;994b	d5
+.NEXT_CHAR:
+	ld a,(hl)			; a - char to print/draw								;994c	7e 
+	or a				; check if 0 - end of text 								;994d	b7 
+	jr z,.EXIT			; yes ------------ End of Proc ------------------------ ;994e	28 0f 
+	cp 13				; chack if CR/LF char 									;9950	fe 0d
+	jr z,.NEXT_LINE		; yes - move destination address to next line 			;9952	28 0d 
+	push hl				; save hl - address of char to print					;9954	e5 
+	push de				; save de - destination address							;9955	d5 
+	call DRAW_CHAR_GFX	; print/draw char on Screen or into Buffer				;9956	cd e9 98 
+	pop de				; restore de - destinatin address						;9959	d1 
+	pop hl				; restore hl - text source address						;995a	e1 
+	inc de				; de - next destination address (4px right)				;995b	13 
+	inc hl				; hl - next char to print/draw							;995c	23 
+	jr .NEXT_CHAR		; continue until char = 0								;995d	18 ed 
+.EXIT:
+	pop de				; restore de - line start VRAM or VBUF address			;995f	d1  
+	ret					; ---------------- End of Proc ------------------------ ;9960	c9 
+.NEXT_LINE:
+	pop de				; restore de - destinatin address						;9961	d1
+	push hl				; save hl - address of char (CR/LF) to print			;9962	e5 
+; -- In Gfx Mode 1 screen resolution is 128x64 px. There are 32 bytes per line wher every byte contains 4 pixels 
+;    In order to find addres 6 lines below we have to add 32 * 6 = 192 bytes
+	ld hl,192			; 192 bytes per 6 gfx lines 							;9963	21 c0 00 
+	add hl,de			; calculate new destination address 6 lines below		;9966	19 
+	ex de,hl			; de - new dst address									;9967	eb 
+	pop hl				; restore hl - address of char (CR/LF) to print			;9968	e1 
+	inc hl				; hl - next char to print (after CR/LF)					;9969	23 
+	jr __PRINT_TEXT_GFX	; print next char										;996a	18 df 
 
 
 ;***********************************************************************************************
