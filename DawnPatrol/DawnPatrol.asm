@@ -52,16 +52,25 @@ JOY_PORT_1			equ		$2a		; Joystick 1 Input IO Port address
 JOY_PORT_2			equ		$25		; Joystick 1 Input IO Port address
 
 ;***********************************************************************************************
-; GAME CONSTANTS
+; GAME VARIABLES
 JOY_ENABLE			equ		$7800	; 1-joystick enabled, 0-keys only
 BASE_SP				equ		$7cf0	; Base Stack Pointer
+VSCRBUF				equ		$aa80	; Offscreen Buffer - 2816 bytes (44x64) - wide screen 
 
+
+;***********************************************************************************************
+; GAME CONSTANTS
+; -- Input Actions Bits
 UP					equ		0		; bit 0 in input bitmask variable
 DOWN				equ		1		; bit 1 in input bitmask variable
 LEFT				equ		2		; bit 2 in input bitmask variable
 RIGHT				equ		3		; bit 3 in input bitmask variable
 FIRE				equ		4		; bit 4 in input bitmask variable
 ROTATE				equ		5		; bit 5 in input bitmask variable
+
+; -- sound predefined values (assumed Gfx Mode)
+SPK_MINUS			equ 	%00101000	; Speaker(+) = 1, (-) = 0
+SPK_PLUS			equ		%00001001	; Speaker(+) = 0, (-) = 1
 
 ;***********************************************************************************************
 ;
@@ -143,7 +152,7 @@ l7d30h:
 	ld a,096h		;7da0	3e 96 	> . 
 	ld (078f7h),a		;7da2	32 f7 78 	2 . x 
 	ld (078f8h),a		;7da5	32 f8 78 	2 . x 
-	call sub_8ddeh		;7da8	cd de 8d 	. . . 
+	call CLEAR_SCRBUF_WIDE	; clear Screen and Buffer (wide mode)					;7da8	cd de 8d 
 	ld hl,la9d5h		;7dab	21 d5 a9 	! . . 
 	ld de,0789ah		;7dae	11 9a 78 	. . x 
 	ld bc,0001ch		;7db1	01 1c 00 	. . . 
@@ -1829,7 +1838,7 @@ sub_89ddh:
 	rlca			;89f0	07 	. 
 	and 003h		;89f1	e6 03 	. . 
 	inc a			;89f3	3c 	< 
-	call sub_8f41h		;89f4	cd 41 8f 	. A . 
+	call SND_PLAY		; play one of Sound (1..4)									;89f4	cd 41 8f 
 	pop hl			;89f7	e1 	. 
 	pop hl			;89f8	e1 	. 
 	pop ix		;89f9	dd e1 	. . 
@@ -2403,12 +2412,17 @@ l8dd0h:
 	dec b			;8dda	05 	. 
 	jr nz,l8dd0h		;8ddb	20 f3 	  . 
 	ret			;8ddd	c9 	. 
-sub_8ddeh:
-	ld hl,0aa80h		;8dde	21 80 aa 	! . . 
-	ld de,0aa81h		;8de1	11 81 aa 	. . . 
-	ld bc,00affh		;8de4	01 ff 0a 	. . . 
-	ld (hl),000h		;8de7	36 00 	6 . 
-	ldir		;8de9	ed b0 	. . 
+
+;***********************************************************************************************
+; Clear Offscreen Buffer and VRAM and set Graphics MODE 1 with default Color Palette
+; This routine is used when Game displays Gameplay screen - wide (176x64)px (44x64)bytes
+; When Game display other screens, offscreen buffer is standard size (128x64)px  (32x64)bytes
+CLEAR_SCRBUF_WIDE:
+	ld hl,VSCRBUF			; src - Offscreen Buffer start						;8dde	21 80 aa
+	ld de,VSCRBUF+1			; dst - next byte									;8de1	11 81 aa 
+	ld bc,2815				; cnt - size of Buffer (wide 2816 = 44 x 64 lines)	;8de4	01 ff 0a 
+	ld (hl),0				; 4 green (background) pixels						;8de7	36 00  
+	ldir					; fill Buffer with green pixels						;8de9	ed b0 
 ; -- Clear Screen and set Graphics MODE 1
 	ld hl,VRAM				; src - video memory start							;8deb	21 00 70 
 	ld de,VRAM+1			; dst - next byte									;8dee	11 01 70 
@@ -2555,7 +2569,6 @@ sub_8ef0h:
 ; Read keys and joystick (if allowed by player)
 ; OUT: a - bitmask with input events (keys or joystick) 
 ;          bit 0 - UP, bit 1 - DOWN, bit 2 - LEFT, bit 3 - RIGHT, bit 4 - FIRE, bit 5 - ROTATE
-
 READ_INPUT:
 	ld c,%00000000			; initial empty bitmask - no input detected				;8ef8	0e 00 
 TEST_KEY_Q
@@ -2618,34 +2631,48 @@ l8f2bh:
 
 
 
-sub_8f41h:
-	ld bc,02080h		;8f41	01 80 20 	. .   
-	dec a			;8f44	3d 	= 
-	jr z,l8f56h		;8f45	28 0f 	( . 
-	ld bc,03060h		;8f47	01 60 30 	. ` 0 
-	dec a			;8f4a	3d 	= 
-	jr z,l8f56h		;8f4b	28 09 	( . 
-	ld bc,04040h		;8f4d	01 40 40 	. @ @ 
-	dec a			;8f50	3d 	= 
-	jr z,l8f56h		;8f51	28 03 	( . 
-	ld bc,sub_801fh+1		;8f53	01 20 80 	.   . 
-l8f56h:
-	ld a,028h		;8f56	3e 28 	> ( 
-	ld (IOLATCH),a		;8f58	32 00 68 	2 . h 
-	call sub_8f6ah		;8f5b	cd 6a 8f 	. j . 
-	ld a,009h		;8f5e	3e 09 	> . 
-	ld (IOLATCH),a		;8f60	32 00 68 	2 . h 
-	call sub_8f6ah		;8f63	cd 6a 8f 	. j . 
-	dec c			;8f66	0d 	. 
-	jr nz,l8f56h		;8f67	20 ed 	  . 
-	ret			;8f69	c9 	. 
-sub_8f6ah:
-	push bc			;8f6a	c5 	. 
-l8f6bh:
-	dec b			;8f6b	05 	. 
-	jr nz,l8f6bh		;8f6c	20 fd 	  . 
-	pop bc			;8f6e	c1 	. 
-	ret			;8f6f	c9 	. 
+;***********************************************************************************************
+; Play Sound.
+; There are 4 predefined sounds. For every value in a (1..4) procedure sets 2 factors: 
+; Half period time (reg b) and sound duration/number of cycles (reg c)
+; IN: a - number of sound to play
+SND_PLAY:
+; -- Sound 1 - Highest Pitch
+	ld bc,$2080				; Half period time = 32, cycles = 128					;8f41	01 80 20 
+	dec a					; decrement and check if 0								;8f44	3d 
+	jr z,.PLAY_SND_WAVE		; yes - Play Sound 1 (32,128)							;8f45	28 0f 
+; -- Sound 2 - High Pitch
+	ld bc,$3060				; Half period time = 48, cycles = 96					;8f47	01 60 30 
+	dec a					; decrement and check if 0								;8f4a	3d 
+	jr z,.PLAY_SND_WAVE		; yes - Play Sound 2 (48,96)							;8f4b	28 09 
+; -- Sound 3 - Middle Pitch
+	ld bc,$4040				; Half period time = 64, cycles = 64					;8f4d	01 40 40 
+	dec a					; decrement and check if 0								;8f50	3d  
+	jr z,.PLAY_SND_WAVE		; yes - Play Sound 3 (64,64)							;8f51	28 03 
+; -- Sound 4 - Low Pitch
+	ld bc,$8020				; Half period time = 128, cycles = 32					;8f53	01 20 80 
+.PLAY_SND_WAVE:
+	ld a,SPK_MINUS			; a - Speaker Out (+/-) [keeps Video Mode 1]			;8f56	3e 28
+	ld (IOLATCH),a			; store in hardware register							;8f58	32 00 68 
+	call DELAY_B			; wait delay (b iterations)								;8f5b	cd 6a 8f 
+	ld a,SPK_PLUS			; a - Speaker Out (+/-) [keeps Video Mode 1]			;8f5e	3e 09 
+	ld (IOLATCH),a			; store in hardware register							;8f60	32 00 68
+	call DELAY_B			; wait delay (b iterations)								;8f63	cd 6a 8f  
+	dec c					; decrement cycles counter	 - check if 0				;8f66	0d 
+	jr nz,.PLAY_SND_WAVE	; no - play next wave cycle								;8f67	20 ed 
+	ret						; ----------------- End of Proc ----------------------- ;8f69	c9  
+
+;***********************************************************************************************
+; Delay for numer iteration provided in b register.
+; Used in Sound Play routine to count half-period time of wave 
+; IN: b - delay time in loop iterations ($20, $30 or $40)
+DELAY_B:
+	push bc					; save bc - delay time (b) and cycle counter (c)		;8f6a	c5 	
+.LOOP:
+	dec b					; decrement time, check if 0							;8f6b	05 
+	jr nz,.LOOP				; no - keep decrementing								;8f6c	20 fd 
+	pop bc					; restore bc - delay time (b) and cycle counter (c)		;8f6e	c1 
+	ret						; ----------------- End of Proc ----------------------- ;8f6f	c9 
 
 
 ;***********************************************************************************************
@@ -2697,29 +2724,31 @@ GAME_INIT:
 	bit 0,a					; check if key 'Y' is pressed							;8fac	cb 47 
 	jp nz,.WAIT_FOR_KEY		; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
 l8fb1h:
+; -- clear ??
 	ld hl,l96e0h		;8fb1	21 e0 96 	! . . 
 	ld de,l96e1h		;8fb4	11 e1 96 	. . . 
 	ld (hl),000h		;8fb7	36 00 	6 . 
 	ld bc,00031h		;8fb9	01 31 00 	. 1 . 
 	ldir		;8fbc	ed b0 	. . 
+; -- initialize 50 bytes of ??? to $2e (dot) value
 	ld hl,l96aeh		;8fbe	21 ae 96 	! . . 
 	ld de,l96afh		;8fc1	11 af 96 	. . . 
 	ld bc,00031h		;8fc4	01 31 00 	. 1 . 
 	ld (hl),02eh		;8fc7	36 2e 	6 . 
 	ldir		;8fc9	ed b0 	. . 
 l8fcbh:
-	di						;8fcb	f3 	. 
-	ld sp,BASE_SP			; reset CPU Stack Pointer to base address			;8fcc	31 f0 7c 
-	ld hl,00020h		;8fcf	21 20 00 	!   . 
-	ld (l98abh),hl		;8fd2	22 ab 98 	" . . 
-	call CLEAR_SCRBUF_GFX		;8fd5	cd 46 94 	. F . 
-	ld hl,TXT_START_PAGE	; Start/Title Page text								;8fd8	21 81 95
-	ld de,0aa80h		;8fdb	11 80 aa 	. . . 
+	di						; disable interrupts									;8fcb	f3 
+	ld sp,BASE_SP			; reset CPU Stack Pointer to base address				;8fcc	31 f0 7c 
+	ld hl,32				; for all Screens except GamePlay there is 32 bytes/line;8fcf	21 20 00 
+	ld (BYTES_PER_LINE),hl	; store current value for drawing routine				;8fd2	22 ab 98 
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fd5	cd 46 94 
+	ld hl,TXT_START_PAGE	; Start/Title Page text									;8fd8	21 81 95
+	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fdb	11 80 aa 
 	call PRINT_TEXT_GFX		; print Start Page in Offscreen Buffer				;8fde	cd 23 94 
 	call sub_930eh		;8fe1	cd 0e 93 	. . . 
 	call CLEAR_SCRBUF_GFX		;8fe4	cd 46 94 	. F . 
 	ld hl,TXT_KEYS_HELP		; Keys Help Page text 								;8fe7	21 f7 95
-	ld de,0aa80h		;8fea	11 80 aa 	. . . 
+	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fea	11 80 aa 
 	call PRINT_TEXT_GFX		; print Help page in Offscreen Buffer				;8fed	cd 23 94 
 	call sub_930eh		;8ff0	cd 0e 93 	. . . 
 	call sub_8ff8h		;8ff3	cd f8 8f 	. . . 
@@ -2806,12 +2835,12 @@ l9056h:
 	ld hl,TXT_NO_PRIS_LEFT	; No Prisoners Left To Rescue							;9063	21 99 94 
 l9066h:
 	push hl					; save hl - Reason text									;9066	e5
-	ld hl,00020h			;9067	21 20 00 	!   . 
-	ld (l98abh),hl			;906a	22 ab 98 	" . . 
+	ld hl,32				; 32 bytes per screen line 								;9067	21 20 00 
+	ld (BYTES_PER_LINE),hl			;906a	22 ab 98 	" . . 
 	call CLEAR_SCRBUF_GFX			;906d	cd 46 94 	. F . 
 ; -- print Mission Over screen with reason and Score into Offscreen Buffer
 	ld hl,TXT_MISSION_OVER	; Mission Over text										;9070	21 b9 94
-	ld de,0aa80h		;9073	11 80 aa 	. . . 
+	ld de,VSCRBUF			; dst - Offscreen Buffer								;9073	11 80 aa 
 	call PRINT_TEXT_GFX		; print Mission Over text in Offscreen Buffer			;9076	cd 23 94 
 	pop hl				;9079	e1 	. 
 	call PRINT_TEXT_GFX		; print Reason text in Offscreen Buffer					;907a	cd 23 94 
@@ -3415,7 +3444,7 @@ sub_93fbh:
 	ret nz					; no ------------ End of Proc (no key) ----------------	;9405	c0 
 ; -- key 'P' is pressed
 	ld hl,0002ch		;9406	21 2c 00 	! , . 
-	ld (l98abh),hl		;9409	22 ab 98 	" . . 
+	ld (BYTES_PER_LINE),hl		;9409	22 ab 98 	" . . 
 	jp l7d03h		;940c	c3 03 7d 	. . } 
 sub_940fh:
 	ld b,014h		;940f	06 14 	. . 
@@ -3477,8 +3506,10 @@ PRINT_TEXT_GFX:
 
 ;***********************************************************************************************
 ; Clear Offscreen Buffer and set Graphics MODE 1 with default Color Palette
+; This routine is used when Game wants to draw on standard size screen (128x64)px (32x64)bytes
+; When Game display Gameplay, offscreen buffer is wide (176x64)px  (44x64)bytes
 CLEAR_SCRBUF_GFX:
-	ld hl,0aa80h			; Video Offscreen Buffer 							;9446	21 80 aa 
+	ld hl,VSCRBUF			; Video Offscreen Buffer 							;9446	21 80 aa 
 	jr CLEAR_GFX			; set Video Graphics Mode 1 and clear RAM			;9449	18 03 
 
 
@@ -3899,7 +3930,7 @@ l9897h:
 	pop de			;9897	d1 	. 
 	push de			;9898	d5 	. 
 	ex de,hl			;9899	eb 	. 
-	ld bc,(l98abh)		;989a	ed 4b ab 98 	. K . . 
+	ld bc,(BYTES_PER_LINE)		;989a	ed 4b ab 98 	. K . . 
 	ld a,005h		;989e	3e 05 	> . 
 l98a0h:
 	push af			;98a0	f5 	. 
@@ -3912,9 +3943,13 @@ l98a0h:
 	jr nz,l98a0h		;98a7	20 f7 	  . 
 	pop de			;98a9	d1 	. 
 	ret			;98aa	c9 	. 
-l98abh:
-	nop			;98ab	00 	. 
-	nop			;98ac	00 	. 
+
+;***********************************************************************************************
+; Variable to store current number of bytes per screen line.
+; This value is used by draw on screen routine and is changed from defaut 32 to 44 
+; when draw to offscreen buffer is performed.
+BYTES_PER_LINE:
+	defw 0			;98ab	00 	. 
 
 
 ;***********************************************************************************************
