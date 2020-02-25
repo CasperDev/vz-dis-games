@@ -79,14 +79,14 @@ SPK_PLUS			equ		%00001001	; Speaker(+) = 0, (-) = 1
 ;***********************************************************************************************
 	org	$7d00
 MAIN	
-	jp JMP_GAME_INIT				; jump to GAME_INIT	via JUMP_TABLE			;7d00	c3 82 8f 
+	jp JMP_GAME_INIT	; jump to GAME_INIT	via JUMP_TABLE							;7d00	c3 82 8f 
 
 
-l7d03h:
+JMP_GAMEPLAY:
 	jp l7d06h		;7d03	c3 06 7d 	. . } 
 l7d06h:
 	di			;7d06	f3 	. 
-	ld sp,BASE_SP			; reset CPU Stack Pointer to base address			;7d07	31 f0 7c
+	ld sp,BASE_SP		; reset CPU Stack Pointer to base address					;7d07	31 f0 7c
 l7d0ah:
 	ld hl,la9c5h		;7d0a	21 c5 a9 	! . . 
 	ld de,07801h		;7d0d	11 01 78 	. . x 
@@ -2690,7 +2690,7 @@ sub_8f76h:
 sub_8f79h:
 	jp l9712h		;8f79	c3 12 97 	. . . 
 l8f7ch:
-	jp l8fcbh		;8f7c	c3 cb 8f 	. . . 
+	jp GAME_START_SCREEN		;8f7c	c3 cb 8f 	. . . 
 l8f7fh:
 	jp l9056h		;8f7f	c3 56 90 	. V . 
 JMP_GAME_INIT:
@@ -2707,8 +2707,10 @@ sub_8f85h:
 GAME_INIT:
 	di						; disable interrupts									;8f88	f3 
 	ld sp,BASE_SP			; reset CPU Stack Pointer to base address				;8f89	31 f0 7c 
-;-- set Gfx Mode, clear screen and 
+;-- set Gfx Mode, clear screen 
 	call CLEAR_SCREEN_GFX	; clear screen - MOde 1 (Gfx)							;8f8c	cd 4b 94 
+
+;-- ask player if he wants to use Joystick
 	ld hl,TXT_JOYSTICK_Q	; text to display - Joystick Question					;8f8f	21 c5 9a 
 	ld de,VRAM				; dst - screen position (0,0)							;8f92	11 00 70 
 	call PRINT_TEXT_GFX		; print Joystick Question in Gfx Mode 1					;8f95	cd 23 94 
@@ -2723,8 +2725,9 @@ GAME_INIT:
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;8fa9	3a bf 68 
 	bit 0,a					; check if key 'Y' is pressed							;8fac	cb 47 
 	jp nz,.WAIT_FOR_KEY		; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
+
 l8fb1h:
-; -- clear ??
+; -- clear 50 bytes ??
 	ld hl,l96e0h		;8fb1	21 e0 96 	! . . 
 	ld de,l96e1h		;8fb4	11 e1 96 	. . . 
 	ld (hl),000h		;8fb7	36 00 	6 . 
@@ -2736,23 +2739,38 @@ l8fb1h:
 	ld bc,00031h		;8fc4	01 31 00 	. 1 . 
 	ld (hl),02eh		;8fc7	36 2e 	6 . 
 	ldir		;8fc9	ed b0 	. . 
-l8fcbh:
+
+
+;***********************************************************************************************
+;
+;    G A M E   S T A R T   S C R E E N 
+;
+; Display Title of the Game and wait until player press <I> or <P>.
+; When player press I then it shows Instruction/Manual pages and after all pages returns back
+; to this routine. When player press P it starts the GamePlay.
+; When player doesn't press any key in about 7 sek. Game switch to display Keys Help screen
+; and after that High Score Screen still checking player input.
+;***********************************************************************************************
+GAME_START_SCREEN:
 	di						; disable interrupts									;8fcb	f3 
 	ld sp,BASE_SP			; reset CPU Stack Pointer to base address				;8fcc	31 f0 7c 
-	ld hl,32				; for all Screens except GamePlay there is 32 bytes/line;8fcf	21 20 00 
+; -- following screens will be in standard size (128x64)px - 32 bytes per line
+	ld hl,32				; all Screens except GamePlay has 32 bytes/line			;8fcf	21 20 00 
 	ld (BYTES_PER_LINE),hl	; store current value for drawing routine				;8fd2	22 ab 98 
+; -- show Start Page Screen
 	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fd5	cd 46 94 
 	ld hl,TXT_START_PAGE	; Start/Title Page text									;8fd8	21 81 95
 	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fdb	11 80 aa 
-	call PRINT_TEXT_GFX		; print Start Page in Offscreen Buffer				;8fde	cd 23 94 
+	call PRINT_TEXT_GFX		; print Start Page into Offscreen Buffer				;8fde	cd 23 94 
 	call sub_930eh		;8fe1	cd 0e 93 	. . . 
-	call CLEAR_SCRBUF_GFX		;8fe4	cd 46 94 	. F . 
-	ld hl,TXT_KEYS_HELP		; Keys Help Page text 								;8fe7	21 f7 95
+; -- show Keys Help Screen
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fe4	cd 46 94 	. F . 
+	ld hl,TXT_KEYS_HELP		; Keys Help Page text 									;8fe7	21 f7 95
 	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fea	11 80 aa 
-	call PRINT_TEXT_GFX		; print Help page in Offscreen Buffer				;8fed	cd 23 94 
+	call PRINT_TEXT_GFX		; print Help page into Offscreen Buffer					;8fed	cd 23 94 
 	call sub_930eh		;8ff0	cd 0e 93 	. . . 
 	call sub_8ff8h		;8ff3	cd f8 8f 	. . . 
-	jr l8fcbh		;8ff6	18 d3 	. . 
+	jr GAME_START_SCREEN		;8ff6	18 d3 	. . 
 sub_8ff8h:
 	call sub_8fffh		;8ff8	cd ff 8f 	. . . 
 	call sub_930eh		;8ffb	cd 0e 93 	. . . 
@@ -2867,7 +2885,7 @@ l908dh:
 	jr nz,l908dh		;909a	20 f1 	  . 
 	call sub_930eh		;909c	cd 0e 93 	. . . 
 	call sub_90dch		;909f	cd dc 90 	. . . 
-	jp z,l8fcbh		;90a2	ca cb 8f 	. . . 
+	jp z,GAME_START_SCREEN		;90a2	ca cb 8f 	. . . 
 	push af			;90a5	f5 	. 
 	call sub_8fffh		;90a6	cd ff 8f 	. . . 
 	pop af			;90a9	f1 	. 
@@ -2900,7 +2918,7 @@ l90b6h:
 	inc hl			;90d3	23 	# 
 	ld (hl),050h		;90d4	36 50 	6 P 
 	call sub_930eh		;90d6	cd 0e 93 	. . . 
-	jp l8fcbh		;90d9	c3 cb 8f 	. . . 
+	jp GAME_START_SCREEN		;90d9	c3 cb 8f 	. . . 
 sub_90dch:
 	ld de,l96e0h		;90dc	11 e0 96 	. . . 
 	ld b,00ah		;90df	06 0a 	. . 
@@ -3265,189 +3283,277 @@ sub_92f6h:
 	pop bc			;930a	c1 	. 
 	djnz sub_92f6h		;930b	10 e9 	. . 
 	ret			;930d	c9 	. 
+
+;****************************************************************************************
+; Make transition to Screen already drawn in Offscreen Buffer
 sub_930eh:
 	call sub_931bh		;930e	cd 1b 93 	. . . 
 	call sub_940fh		;9311	cd 0f 94 	. . . 
 	call sub_940fh		;9314	cd 0f 94 	. . . 
 	call sub_940fh		;9317	cd 0f 94 	. . . 
 	ret			;931a	c9 	. 
+
+;****************************************************************************************
+; Red Frame Animation
+; * PHASE 1: Fill screen to red by drawing 16 rectangles (without fill) outside in. 
+; Every rectangle has border 2px height (top and bottom) and 4px (1 byte) width 
+; (left and right). Every next rectangle is smaller than previous by border dimensions 
+; what leads to fill whole screen.
+; * PHASE 2: Draw content from Offscreen Buffer in 15 steps inside out.
+; Starting from center of screen content from buffer is drawn in rectangular areas.
+; First this rectangle has dimensions 2x4px and whith every next step area is expanded
+; by  4px verticaly and 8px / 2 bytes horizotal.
 sub_931bh:
-	ld hl,VRAM			; screen coord (0,0)px									;931b	21 00 70 
-	ld bc,0401fh		;931e	01 1f 40 	. . @ 
-	ld a,010h		;9321	3e 10 	> . 
-l9323h:
-	push af			;9323	f5 	. 
-	push hl			;9324	e5 	. 
-	push bc			;9325	c5 	. 
-	call sub_93b9h		;9326	cd b9 93 	. . . 
-	ld de,$2000				; delay parameter value								;9329	11 00 20 
-	call DELAY_DE			; wait delay										;932c	cd 1d 94 
-	pop bc			;932f	c1 	. 
-	pop hl			;9330	e1 	. 
-	pop af			;9331	f1 	. 
-	ld de,00041h		;9332	11 41 00 	. A . 
-	add hl,de			;9335	19 	. 
-	dec b			;9336	05 	. 
-	dec b			;9337	05 	. 
-	dec b			;9338	05 	. 
-	dec b			;9339	05 	. 
-	dec c			;933a	0d 	. 
-	dec c			;933b	0d 	. 
-	dec a			;933c	3d 	= 
-	jr nz,l9323h		;933d	20 e4 	  . 
-	ld hl,073cfh		;933f	21 cf 73 	! . s 
-	ld de,0ae4fh		;9342	11 4f ae 	. O . 
-	ld bc,00401h		;9345	01 01 04 	. . . 
-	ld a,00fh		;9348	3e 0f 	> . 
-l934ah:
-	push af			;934a	f5 	. 
-	push bc			;934b	c5 	. 
-	push de			;934c	d5 	. 
-	push hl			;934d	e5 	. 
-	call sub_936fh		;934e	cd 6f 93 	. o . 
-	ld de,$2000				; delay parameter value									;9351	11 00 20 
-	call DELAY_DE			; wait delay											;9354	cd 1d 94 
-	pop de			;9357	d1 	. 
-	pop hl			;9358	e1 	. 
-	ld bc,00041h		;9359	01 41 00 	. A . 
-	or a			;935c	b7 	. 
-	sbc hl,bc		;935d	ed 42 	. B 
-	ex de,hl			;935f	eb 	. 
-	or a			;9360	b7 	. 
-	sbc hl,bc		;9361	ed 42 	. B 
-	pop bc			;9363	c1 	. 
-	pop af			;9364	f1 	. 
-	inc b			;9365	04 	. 
-	inc b			;9366	04 	. 
-	inc b			;9367	04 	. 
-	inc b			;9368	04 	. 
-	inc c			;9369	0c 	. 
-	inc c			;936a	0c 	. 
-	dec a			;936b	3d 	= 
-	jr nz,l934ah		;936c	20 dc 	  . 
-	ret			;936e	c9 	. 
-sub_936fh:
-	call sub_938fh		;936f	cd 8f 93 	. . . 
-	call sub_938fh		;9372	cd 8f 93 	. . . 
-	push bc			;9375	c5 	. 
-	ld a,b			;9376	78 	x 
-	dec a			;9377	3d 	= 
-	dec a			;9378	3d 	= 
-	dec a			;9379	3d 	= 
-	dec a			;937a	3d 	= 
-	jr z,l9387h		;937b	28 0a 	( . 
-	ld b,000h		;937d	06 00 	. . 
-l937fh:
-	push af			;937f	f5 	. 
-	call sub_93a4h		;9380	cd a4 93 	. . . 
-	pop af			;9383	f1 	. 
-	dec a			;9384	3d 	= 
-	jr nz,l937fh		;9385	20 f8 	  . 
-l9387h:
-	pop bc			;9387	c1 	. 
-	call sub_938fh		;9388	cd 8f 93 	. . . 
-	call sub_938fh		;938b	cd 8f 93 	. . . 
-	ret			;938e	c9 	. 
-sub_938fh:
-	push bc			;938f	c5 	. 
-	push de			;9390	d5 	. 
-	push hl			;9391	e5 	. 
-	inc c			;9392	0c 	. 
-l9393h:
-	ld a,(de)			;9393	1a 	. 
-	ld (hl),a			;9394	77 	w 
-	inc hl			;9395	23 	# 
-	inc de			;9396	13 	. 
-	dec c			;9397	0d 	. 
-	jr nz,l9393h		;9398	20 f9 	  . 
-	pop de			;939a	d1 	. 
-	pop hl			;939b	e1 	. 
-	ld bc,00020h		;939c	01 20 00 	.   . 
-	add hl,bc			;939f	09 	. 
-	ex de,hl			;93a0	eb 	. 
-	add hl,bc			;93a1	09 	. 
-	pop bc			;93a2	c1 	. 
-	ret			;93a3	c9 	. 
-sub_93a4h:
-	push bc			;93a4	c5 	. 
-	push de			;93a5	d5 	. 
-	push hl			;93a6	e5 	. 
-	ld a,(de)			;93a7	1a 	. 
-	ld (hl),a			;93a8	77 	w 
-	add hl,bc			;93a9	09 	. 
-	ex de,hl			;93aa	eb 	. 
-	add hl,bc			;93ab	09 	. 
-	ex de,hl			;93ac	eb 	. 
-	ld a,(de)			;93ad	1a 	. 
-	ld (hl),a			;93ae	77 	w 
-	ld bc,00020h		;93af	01 20 00 	.   . 
-	pop de			;93b2	d1 	. 
-	pop hl			;93b3	e1 	. 
-	add hl,bc			;93b4	09 	. 
-	ex de,hl			;93b5	eb 	. 
-	add hl,bc			;93b6	09 	. 
-	pop bc			;93b7	c1 	. 
-	ret			;93b8	c9 	. 
-sub_93b9h:
-	call sub_93d9h		;93b9	cd d9 93 	. . . 
-	call sub_93d9h		;93bc	cd d9 93 	. . . 
-	push bc			;93bf	c5 	. 
-	ld a,b			;93c0	78 	x 
-	dec a			;93c1	3d 	= 
-	dec a			;93c2	3d 	= 
-	dec a			;93c3	3d 	= 
-	dec a			;93c4	3d 	= 
-	jr z,l93d1h		;93c5	28 0a 	( . 
-	ld b,000h		;93c7	06 00 	. . 
-l93c9h:
-	push af			;93c9	f5 	. 
-	call sub_93ebh		;93ca	cd eb 93 	. . . 
-	pop af			;93cd	f1 	. 
-	dec a			;93ce	3d 	= 
-	jr nz,l93c9h		;93cf	20 f8 	  . 
-l93d1h:
-	pop bc			;93d1	c1 	. 
-	call sub_93d9h		;93d2	cd d9 93 	. . . 
-	call sub_93d9h		;93d5	cd d9 93 	. . . 
-	ret			;93d8	c9 	. 
-sub_93d9h:
-	push bc			;93d9	c5 	. 
-	push hl			;93da	e5 	. 
-	push hl			;93db	e5 	. 
-	pop de			;93dc	d1 	. 
-	inc de			;93dd	13 	. 
-	ld b,000h		;93de	06 00 	. . 
-	ld (hl),0ffh		;93e0	36 ff 	6 . 
-	ldir		;93e2	ed b0 	. . 
-	pop hl			;93e4	e1 	. 
-	ld de,00020h		;93e5	11 20 00 	.   . 
-	add hl,de			;93e8	19 	. 
-	pop bc			;93e9	c1 	. 
-	ret			;93ea	c9 	. 
-sub_93ebh:
-	push bc			;93eb	c5 	. 
-	push hl			;93ec	e5 	. 
-	ld (hl),0ffh		;93ed	36 ff 	6 . 
-	ld b,000h		;93ef	06 00 	. . 
-	add hl,bc			;93f1	09 	. 
-	ld (hl),0ffh		;93f2	36 ff 	6 . 
-	pop hl			;93f4	e1 	. 
-	ld de,00020h		;93f5	11 20 00 	.   . 
-	add hl,de			;93f8	19 	. 
-	pop bc			;93f9	c1 	. 
-	ret			;93fa	c9 	. 
+; -- PHASE 1 - draw rectangles outside in
+	ld hl,VRAM			; screen coord (0,0)px	- rect top-left corner				;931b	21 00 70 
+	ld bc,$401f			; b - 64px rect height, c - 31 bytes rect width				;931e	01 1f 40 
+	ld a,16				; a - 16 rectangles to draw									;9321	3e 10 
+.NEXT_RECT:
+	push af				; save a - rectangles counter								;9323	f5 
+	push hl				; save hl - VRAM address of rect top-left					;9324	e5 
+	push bc				; save bc - rect dimensions 								;9325	c5 
+; -- draw rectangle
+	call DRAW_RED_RECT	; draw Red Rectangle										;9326	cd b9 93 
+; -- wait delay
+	ld de,$2000			; delay parameter value										;9329	11 00 20 
+	call DELAY_DE		; wait delay												;932c	cd 1d 94 
+; -- calculate new position for next rectangle
+	pop bc				; restore bc - rect height and width						;932f	c1 
+	pop hl				; restore hl - VRAM address of top-left corner 				;9330	e1 
+	pop af				; restore a - rectangles counter 							;9331	f1 
+	ld de,(2*32)+1		; 2 lines + 4 pixels										;9332	11 41 00
+	add hl,de			; hl - VRAM addres of next rectangle to draw				;9335	19
+; -- calculate new dimensions for next rectangle
+	dec b				; decrement height of next rectangle ...					;9336	05 
+	dec b				; -2 lines of top border line								;9337	05 
+	dec b				;															;9338	05 
+	dec b				; -2 lines of bottom border line							;9339	05 
+	dec c				; decrement width of next rectangle ...						;933a	0d 
+	dec c				; -2 bytes = 1 (4px) left and 1 (4px) right border			;933b	0d 
+; -- dec counter and check if all rectangles are drawn yet
+	dec a				; decrement rectangles to draw - chack if 0					;933c	3d
+	jr nz,.NEXT_RECT	; no - draw next rectangle									;933d	20 e4 
+
+;-- PHASE 2 - draw content inside out
+	ld hl,VRAM+(30*32)+15	; screen coordinates (60,30)px - screen center			;933f	21 cf 73 
+	ld de,VSCRBUF+(30*32)+15; in buffer coordinates (60,30)px						;9342	11 4f ae 
+	ld bc,$0401			; b - 4px area height, c - 1 byte area width 				;9345	01 01 04 
+	ld a,15				; a - 15 steps of drawing content							;9348	3e 0f 
+.NEXT_AREA:
+	push af				; save a - steps counter									;934a	f5
+	push bc				; save bc - area dimensions									;934b	c5 
+	push de				; save de - address in Offscreen Buffer (source)			;934c	d5 
+	push hl				; save hl - VRAM addres to draw (destination)				;934d	e5 
+; -- draw/copy buffer content to screen
+	call DRAW_BUF_AREA	; Draw Rectangular Area from Offscreen Buffer				;934e	cd 6f 93 
+; -- wait delay
+	ld de,$2000			; delay parameter value										;9351	11 00 20 
+	call DELAY_DE		; wait delay												;9354	cd 1d 94 
+; -- calculate new position for next area - source and destination
+	pop de				; restore de - VRAM address (destination)					;9357	d1 
+	pop hl				; restore hl - Offscreen Buffer address (source)			;9358	e1 
+	ld bc,(2*32)+1		; 2 lines + 4 pixels										;9359	01 41 00 
+	or a				; clear Carry flag											;935c	b7 
+	sbc hl,bc			; hl - Buffer address 2 lines above and 4px left			;935d	ed 42 
+	ex de,hl			; de - Buffer addres, hl - VRAM address						;935f	eb 
+	or a				; clear Carry flag											;9360	b7 
+	sbc hl,bc			; hl - VRAM address 2 lines above and 4px left				;9361	ed 42 
+; -- calculate new dimensions for next area
+	pop bc				; restore bc - area dimensions								;9363	c1
+	pop af				; restore a - number of steps								;9364	f1 
+	inc b				; increment height of new area ....							;9365	04 
+	inc b				; +2 lines up												;9366	04 
+	inc b				;															;9367	04 
+	inc b				; +2 lines down												;9368	04 
+	inc c				; increment width of next area ...							;9369	0c
+	inc c				; +2 bytes = 1 (4px) left and 1 (4px) right 				;936a	0c 
+; -- dec counter and check if all areas are drawn yet
+	dec a				; decrement steps (areas) counter - chack if 0				;936b	3d 
+	jr nz,.NEXT_AREA	; no - draw next area										;936c	20 dc 
+	ret					; ------------------- End of Proc ------------------------- ;936e	c9 
+
+
+;***********************************************************************************************
+; Draw Rectangular Area from Offscreen Buffer.
+; Horizontal lines are 2px height and Vertical lines are 4 px width
+; IN: b - area heigh in lines/pixels
+;     c - area width (minus 1) in bytes
+;    hl - VRAM addres of top-left corner (destination)
+;    de - Offscreen Buffer addres of top-left corner (source)
+DRAW_BUF_AREA:
+	call DRAW_BUF_HLINE	; draw horizontal line of content on screen					;936f	cd 8f 93  
+	call DRAW_BUF_HLINE	; draw second line below - same width						;9372	cd 8f 93 
+	push bc				; save bc - area dimensions									;9375	c5  
+	ld a,b				; a - area height (in lines) 								;9376	78 
+	dec a				;															;9377	3d 
+	dec a				; -2 top lines already drawn 								;9378	3d
+	dec a				;															;9379	3d 
+	dec a				; -2 bottom lines will be drawn - check if 0 lines left		;937a	3d 
+	jr z,.BOTTOM_AREA	; yes - skip drawing middle area, draw bottom lines			;937b	28 0a 
+; -- draw middle area - no need to draw whole line because it's drawn in previous step
+; so draw only left and right byte (like border)
+	ld b,000h			; bc - area width (in bytes) 								;937d	06 00 
+.NEXT_LR_BYTES:
+	push af				; save af - area height (minus 4 lines) 					;937f	f5 
+	call DRAW_LR_BYTES	; draw only Left and Right bytes from Buffer				;9380	cd a4 93
+	pop af				; restore af - area height - lines counter					;9383	f1 
+	dec a				; decrement 1 just drawn - check if more to draw			;9384	3d 
+	jr nz,.NEXT_LR_BYTES; yes - repeat a times										;9385	20 f8 
+.BOTTOM_AREA:
+	pop bc				; save bc - area dimensions									;9387	c1  
+	call DRAW_BUF_HLINE	; draw second to end line of area							;9388	cd 8f 93 
+	call DRAW_BUF_HLINE	; draw bottom line of rectangle								;938b	cd 8f 93 
+	ret					; ------------------- End of Proc ------------------------- ;938e	c9 
+
+;***********************************************************************************************
+; Draw 1 horizontal line of content from Buffer on screen. 
+; IN c - line width in bytes (minus 1)
+;    hl - address VRAM - begin of line to draw (destination)
+;    de - Offscreen Buffer addres of line to copy (source)
+DRAW_BUF_HLINE:
+	push bc				; save bc - c - width of area in bytes						;938f	c5 
+	push de				; save hl - address Offscreen Buffer						;9390	d5  
+	push hl				; save hl - address VRAM 									;9391	e5 
+; -- copy bytes from Offscreen Buffer to VRAM	
+	inc c				; c - area width including last byte						;9392	0c
+.NEXT_BYTE:
+	ld a,(de)			; a - byte from Offscreen Buffer							;9393	1a
+	ld (hl),a			; draw - copy to Screen memory 								;9394	77
+	inc hl				; hl - next VRAM address 									;9395	23 
+	inc de				; de - next Buffer address 									;9396	13 
+	dec c				; decrement bytes counter - check if 0						;9397	0d 
+	jr nz,.NEXT_BYTE	; no - copy next byte										;9398	20 f9 
+; -- move hl and de to point next screen line respectively in VRAM and Buffer
+	pop de				; restore de - begin of drawn data in VRAM					;939a	d1 
+	pop hl				; restore hl - begin of drawn data in Buffer				;939b	e1
+	ld bc,32			; 32 bytes per screen line									;939c	01 20 00  
+	add hl,bc			; hl - begining of next line (Buffer)						;939f	09  
+	ex de,hl			; de - addres in Buffer, hl - address VRAM					;93a0	eb 
+	add hl,bc			; hl - begining of next line (VRAM)							;93a1	09 
+	pop bc				; restore bc - width and height of area						;93a2	c1 
+	ret					; ------------------- End of Proc ------------------------- ;93a3	c9 
+
+
+;***********************************************************************************************
+; Draw only Left and Right bytes of content - 4px thick, 1px height. 
+; IN: bc - line width in bytes (minus 1)
+;     hl - address VRAM - begin of line to draw (destination)
+;     de - Offscreen Buffer addres of line to copy (source)
+DRAW_LR_BYTES:
+	push bc				; save bc - line width in bytes								;93a4	c5  
+	push de				; save de - Buffer address (source)							;93a5	d5  
+	push hl				; save hl - VRAM address (destination)						;93a6	e5  
+; -- draw/copy Left byte (4px)
+	ld a,(de)			; a - byte from Offscreen Buffer							;93a7	1a 
+	ld (hl),a			; draw - copy to Screen memory 								;93a8	77 
+	add hl,bc			; hl - address of right edge of area (VRAM)					;93a9	09 
+	ex de,hl			; de - address VRAM, hl - address in Buffer					;93aa	eb 
+	add hl,bc			; hl - address of right edge of area (Buffer)				;93ab	09  
+	ex de,hl			; exchange back												;93ac	eb 
+; -- draw/copy Right byte (4px)
+	ld a,(de)			; a - byte from Offscreen Buffer							;93ad	1a 
+	ld (hl),a			; draw - copy to Screen memory 								;93ae	77 
+; -- update VRAM and Buffer addresses to next line
+	ld bc,32			; 32 bytes per line											;93af	01 20 00 
+	pop de				; restore de - begin of drawn data in VRAM					;93b2	d1 
+	pop hl				; restor hl - begin of drawn data in Buffer					;93b3	e1 
+	add hl,bc			; hl - begin of next line in Buffer							;93b4	09 
+	ex de,hl			; de - address in Buffer, hl - address VRAM					;93b5	eb 
+	add hl,bc			; hl - begin of next line in VRAM							;93b6	09 	 
+	pop bc				; restore bc - line width in bytes							;93b7	c1 
+	ret					; ------------------- End of Proc ------------------------- ;93b8	c9 	
+	
+
+;***********************************************************************************************
+; Draw Red Rectangle Border.
+; Horizontal lines are 2px height and Vertical lines are 4 px width
+; IN: b - rectangle heigh in lines/pixels
+;     c - rectangle width (minus 1) in bytes
+;    hl - VRAM addres of top-left corner 
+DRAW_RED_RECT:
+; -- draw to lines - top border
+	call DRAW_RED_HLINE	; draw Red horizontal line on screen						;93b9	cd d9 93 
+	call DRAW_RED_HLINE	; draw second line below - same width						;93bc	cd d9 93 
+	push bc				; save bc - rect dimensions									;93bf	c5
+	ld a,b				; a - rect height (in lines) 								;93c0	78 
+	dec a				; 															;93c1	3d 
+	dec a				; -2 top lines already drawn 								;93c2	3d 
+	dec a				;															;93c3	3d 
+	dec a				; -2 bottom lines will be drawn - check if 0 lines left		;93c4	3d 
+	jr z,.BOTTOM_BORDER	; yes - skip drawing middle area, draw bottom lines			;93c5	28 0a 
+; -- draw middle area of rectangle
+	ld b,0				; bc - rectangle width (in bytes) 							;93c7	06 00 
+.NEXT_LR_BORDER:
+	push af				; save af - rectangle height (minus 4 frame lines) 			;93c9	f5
+	call DRAW_LR_BORDER	; draw Left and Right border 1 line height, 4 pixels thick	;93ca	cd eb 93 
+	pop af				; restore af - rectangle height - lines counter				;93cd	f1 
+	dec a				; decrement 1 just drawn - check if more 					;93ce	3d 
+	jr nz,.NEXT_LR_BORDER	; yes - repeat a times									;93cf	20 f8 
+.BOTTOM_BORDER:
+	pop bc				; restore bc - rect dimensions								;93d1	c1
+	call DRAW_RED_HLINE	; draw second to end line of recangle						;93d2	cd d9 93 
+	call DRAW_RED_HLINE	; draw bottom line of rectangle								;93d5	cd d9 93 
+	ret					; ------------------- End of Proc ------------------------- ;93d8	c9 
+
+
+;***********************************************************************************************
+; Draw Red horizontal line on screen. 
+; IN c - line width in bytes
+;    hl - address VRAM - begin of line to draw 
+DRAW_RED_HLINE:
+	push bc				; save bc - c - width of red line in bytes					;93d9	c5 
+	push hl				; save hl - address VRAM 									;93da	e5 
+; -- standard copy mem procedure [hl] -> [de], bc bytes	
+	push hl				; copy hl (source) to de (destination)						;93db	e5 
+	pop de				; de - VRAM address - destination 							;93dc	d1 
+	inc de				; de address + 1 											;93dd	13 
+	ld b,0				; bc = 31 bytes to fill - 1 line of screen					;93de	06 00 
+	ld (hl),$ff			; store 4 red pixels to first byta (source)					;93e0	36 ff 
+	ldir				; fill screen line (31 bytes) with 4 Red pixels				;93e2	ed b0 
+; -- move hl to point next screen line
+	pop hl				; restore hl - begin of drawn line							;93e4	e1 
+	ld de,32			; 32 bytes per screen line									;93e5	11 20 00 
+	add hl,de			; hl - begining of next line								;93e8	19 
+	pop bc				; restore bc - c - line width in bytes 						;93e9	c1 
+	ret					; ------------------- End of Proc ------------------------- ;93ea	c9 
+
+
+;***********************************************************************************************
+; Draw Left and Right border pixels - 4px thick, 1px height. 
+; IN: bc - line width in bytes (minus 1)
+;     hl - address VRAM - begin of line to draw 
+DRAW_LR_BORDER:
+	push bc				; save bc - line width in bytes								;93eb	c5 
+	push hl				; save hl - VRAM address									;93ec	e5 
+; -- draw Left 4 pixels
+	ld (hl),$ff			; store 4 red pixels										;93ed	36 ff 
+	ld b,0				; bc - line width in bytes									;93ef	06 00
+	add hl,bc			; hl - address of right border 								;93f1	09 
+; -- draw Right 4 pixels
+	ld (hl),$ff			; store 4 red pixels										;93f2	36 ff 
+	pop hl				; restore hl - begin of line								;93f4	e1 
+; -- update VRAM addres to next line
+	ld de,32			; 32 bytes per line											;93f5	11 20 00 
+	add hl,de			; hl - begin of next line									;93f8	19 
+; -- exit
+	pop bc				; restore bc - rectangle heigh and width					;93f9	c1
+	ret					; ------------------- End of Proc ------------------------- ;93fa	c9 
+
+
 sub_93fbh:
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;93fb	3a bf 68 
 	bit 3,a					; check if key 'I' is pressed							;93fe	cb 5f 
 	jp z,SHOW_MANUAL		; yes - show Manual/Instruction pages					;9400	ca 4f 9a
 	bit 4,a					; check if key 'P' is pressed							;9403	cb 67 
 	ret nz					; no ------------ End of Proc (no key) ----------------	;9405	c0 
-; -- key 'P' is pressed
-	ld hl,0002ch		;9406	21 2c 00 	! , . 
-	ld (BYTES_PER_LINE),hl		;9409	22 ab 98 	" . . 
-	jp l7d03h		;940c	c3 03 7d 	. . } 
+; -- key 'P' is pressed - switch to GamPlay screen
+	ld hl,44				; 44 bytes per line - wide screen (178x64)px			;9406	21 2c 00 
+	ld (BYTES_PER_LINE),hl	; store new value										;9409	22 ab 98
+	jp JMP_GAMEPLAY			; jump to GamePlay;940c	c3 03 7d 	. . } 
+
+
 sub_940fh:
-	ld b,014h		;940f	06 14 	. . 
+	ld b,20		;940f	06 14 	. . 
 l9411h:
 	ld de,$4000				; delay parameter value									;9411	11 00 40
 	call DELAY_DE			; wait delay											;9414	cd 1d 94 
@@ -4218,7 +4324,7 @@ SHOW_MANUAL:
 	call PRINT_TEXT			; print Instruction Page 5 on screen					;9a94	cd 32 9a 
 	call PROMPT_C_TO_CONT	; display prompt and wait for 'C' to continue			;9a97	cd a0 9a 
 	call CLEAR_SCREEN_GFX	; clear screeen - Mode 1 (Gfx)							;9a9a	cd 4b 94 
-	jp l8fcbh		;9a9d	c3 cb 8f 	. . . 
+	jp GAME_START_SCREEN		;9a9d	c3 cb 8f 	. . . 
 
 PROMPT_C_TO_CONT:
 	ld hl,TXT_PRESS_C_CONT	; text - Press C to Continue							;9aa0	21 dc a0 
