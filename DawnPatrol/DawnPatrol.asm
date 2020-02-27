@@ -2667,12 +2667,12 @@ SND_PLAY:
 ; Used in Sound Play routine to count half-period time of wave 
 ; IN: b - delay time in loop iterations ($20, $30 or $40)
 DELAY_B:
-	push bc					; save bc - delay time (b) and cycle counter (c)		;8f6a	c5 	
+	push bc				; save bc - delay time (b) and cycle counter (c)			;8f6a	c5 	
 .LOOP:
-	dec b					; decrement time, check if 0							;8f6b	05 
-	jr nz,.LOOP				; no - keep decrementing								;8f6c	20 fd 
-	pop bc					; restore bc - delay time (b) and cycle counter (c)		;8f6e	c1 
-	ret						; ----------------- End of Proc ----------------------- ;8f6f	c9 
+	dec b				; decrement time, check if 0								;8f6b	05 
+	jr nz,.LOOP			; no - keep decrementing									;8f6c	20 fd 
+	pop bc				; restore bc - delay time (b) and cycle counter (c)			;8f6e	c1 
+	ret					; ----------------- End of Proc ---------------------------	;8f6f	c9 
 
 
 ;***********************************************************************************************
