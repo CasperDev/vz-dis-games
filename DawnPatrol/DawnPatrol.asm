@@ -2719,26 +2719,26 @@ GAME_INIT:
 	ld (JOY_ENABLE),a		; store in Game Settings variable						;8f99	32 00 78 
 	ld a,(KEYS_ROW_4)		; select Keyboard row 4 								;8f9c	3a ef 68
 	bit 0,a					; check if key 'N' is pressed							;8f9f	cb 47 
-	jp z,l8fb1h				; yes - continue initialization							;8fa1	ca b1 8f 
+	jp z,.INIT_HIGH_SCORES	; yes - continue with High Score initialization			;8fa1	ca b1 8f 
 	ld a,1					; value 1 - Joystick Enabled							;8fa4	3e 01 
 	ld (JOY_ENABLE),a		; store in Game Settings variable						;8fa6	32 00 78 
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;8fa9	3a bf 68 
 	bit 0,a					; check if key 'Y' is pressed							;8fac	cb 47 
 	jp nz,.WAIT_FOR_KEY		; no - wait until player press 'N' or 'Y'				;8fae	c2 98 8f 
 
-l8fb1h:
-; -- clear 50 bytes ??
-	ld hl,l96e0h		;8fb1	21 e0 96 	! . . 
-	ld de,l96e1h		;8fb4	11 e1 96 	. . . 
-	ld (hl),000h		;8fb7	36 00 	6 . 
-	ld bc,00031h		;8fb9	01 31 00 	. 1 . 
-	ldir		;8fbc	ed b0 	. . 
-; -- initialize 50 bytes of ??? to $2e (dot) value
-	ld hl,l96aeh		;8fbe	21 ae 96 	! . . 
-	ld de,l96afh		;8fc1	11 af 96 	. . . 
-	ld bc,00031h		;8fc4	01 31 00 	. 1 . 
-	ld (hl),02eh		;8fc7	36 2e 	6 . 
-	ldir		;8fc9	ed b0 	. . 
+.INIT_HIGH_SCORES:
+; -- clear 50 bytes of High Score Values (10 values * 5 digits each)
+	ld hl,VAR_HS_VALUES		; (src) address of Hight Score Values table				;8fb1	21 e0 96
+	ld de,VAR_HS_VALUES+1	; (dst) address + 1										;8fb4	11 e1 96 
+	ld (hl),0				; value 0 to fill table									;8fb7	36 00
+	ld bc,50-1				; 50 bytes to fill										;8fb9	01 31 00 
+	ldir					; fill table with 0 value								;8fbc	ed b0 
+; -- initialize 50 bytes of Hight Score Players Names (10 names * 5 char each) to $2e (dot) char
+	ld hl,TXT_HS_NAMES		; (src) address of Hight Score Names table				;8fbe	21 ae 96
+	ld de,TXT_HS_NAMES+1	; (dst) address + 1										;8fc1	11 af 96 
+	ld bc,50-1				; 50 bytes to fill										;8fc4	01 31 00 
+	ld (hl),'.'				; char '.' (dot) to fill table							;8fc7	36 2e  
+	ldir					; fill table with '.' char								;8fc9	ed b0 
 
 
 ;***********************************************************************************************
@@ -2762,82 +2762,89 @@ GAME_START_SCREEN:
 	ld hl,TXT_START_PAGE	; Start/Title Page text									;8fd8	21 81 95
 	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fdb	11 80 aa 
 	call PRINT_TEXT_GFX		; print Start Page into Offscreen Buffer				;8fde	cd 23 94 
-	call sub_930eh		;8fe1	cd 0e 93 	. . . 
-; -- show Keys Help Screen
-	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fe4	cd 46 94 	. F . 
+	call SHOW_SCR_WAIT		; show Start Screen (animation) and wait for key I or P	;8fe1	cd 0e 93 
+; -- no keys pressed - show Keys Help Screen
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fe4	cd 46 94 
 	ld hl,TXT_KEYS_HELP		; Keys Help Page text 									;8fe7	21 f7 95
 	ld de,VSCRBUF			; dst - Offscreen Buffer								;8fea	11 80 aa 
 	call PRINT_TEXT_GFX		; print Help page into Offscreen Buffer					;8fed	cd 23 94 
-	call sub_930eh		;8ff0	cd 0e 93 	. . . 
-	call sub_8ff8h		;8ff3	cd f8 8f 	. . . 
-	jr GAME_START_SCREEN		;8ff6	18 d3 	. . 
-sub_8ff8h:
-	call sub_8fffh		;8ff8	cd ff 8f 	. . . 
-	call sub_930eh		;8ffb	cd 0e 93 	. . . 
-	ret			;8ffe	c9 	. 
-sub_8fffh:
-	call CLEAR_SCRBUF_GFX		;8fff	cd 46 94 	. F . 
-	ld hl,l96aeh		;9002	21 ae 96 	! . . 
-	ld de,0aac8h		;9005	11 c8 aa 	. . . 
-	ld a,00ah		;9008	3e 0a 	> . 
-l900ah:
-	push af			;900a	f5 	. 
-	ld a,005h		;900b	3e 05 	> . 
-l900dh:
-	push af			;900d	f5 	. 
-	push de			;900e	d5 	. 
-	push hl			;900f	e5 	. 
-	ld a,(hl)			;9010	7e 	~ 
-	call DRAW_CHAR_GFX	; print/draw char on Screen									;9011	cd e9 98 
-	pop hl			;9014	e1 	. 
-	pop de			;9015	d1 	. 
-	inc hl			;9016	23 	# 
-	inc de			;9017	13 	. 
-	pop af			;9018	f1 	. 
-	dec a			;9019	3d 	= 
-	jr nz,l900dh		;901a	20 f1 	  . 
-	push hl			;901c	e5 	. 
-	push de			;901d	d5 	. 
-	inc de			;901e	13 	. 
-	inc de			;901f	13 	. 
-	ld a,03dh		;9020	3e 3d 	> = 
-	call DRAW_CHAR_GFX	; print/draw char on Screen									;9022	cd e9 98 
-	pop de			;9025	d1 	. 
-	ld hl,000bbh		;9026	21 bb 00 	! . . 
-	add hl,de			;9029	19 	. 
-	ex de,hl			;902a	eb 	. 
-	pop hl			;902b	e1 	. 
-	pop af			;902c	f1 	. 
-	dec a			;902d	3d 	= 
-	jr nz,l900ah		;902e	20 da 	  . 
-	ld hl,l96e0h		;9030	21 e0 96 	! . . 
-	ld de,0aad2h		;9033	11 d2 aa 	. . . 
-	ld a,00ah		;9036	3e 0a 	> . 
-l9038h:
-	push af			;9038	f5 	. 
-	ld a,005h		;9039	3e 05 	> . 
-l903bh:
-	push af			;903b	f5 	. 
-	push de			;903c	d5 	. 
-	push hl			;903d	e5 	. 
-	ld a,(hl)			;903e	7e 	~ 
-	call sub_9889h		;903f	cd 89 98 	. . . 
-	pop hl			;9042	e1 	. 
-	pop de			;9043	d1 	. 
-	inc hl			;9044	23 	# 
-	inc de			;9045	13 	. 
-	pop af			;9046	f1 	. 
-	dec a			;9047	3d 	= 
-	jr nz,l903bh		;9048	20 f1 	  . 
-	push hl			;904a	e5 	. 
-	ld hl,000bbh		;904b	21 bb 00 	! . . 
-	add hl,de			;904e	19 	. 
-	ex de,hl			;904f	eb 	. 
-	pop hl			;9050	e1 	. 
-	pop af			;9051	f1 	. 
-	dec a			;9052	3d 	= 
-	jr nz,l9038h		;9053	20 e3 	  . 
-	ret			;9055	c9 	. 
+	call SHOW_SCR_WAIT		; show Help Screen (animation) and wait for key I or P	;8ff0	cd 0e 93 
+; -- no keys pressed - show High Scores	Screen
+	call SHOW_SCR_HIGHSCORE	; show High Score  (animation) and wait for key I or P	;8ff3	cd f8 8f
+	jr GAME_START_SCREEN	; no keys pressed - show Start Page again				;8ff6	18 d3 
+
+
+
+SHOW_SCR_HIGHSCORE:
+	call PRINT_HIGH_SCORES	; draw High Scores Screen into Offscreen Buffer			;8ff8	cd ff 8f 
+	call SHOW_SCR_WAIT		; show High Score  (animation) and wait for key I or P	;8ffb	cd 0e 93 
+	ret						; ----------------- End of Proc ----------------------- ;8ffe	c9  
+
+
+PRINT_HIGH_SCORES:
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer								;8fff	cd 46 94 
+	ld hl,TXT_HS_NAMES		; High Score names - 10 names * 5 char each				;9002	21 ae 96 
+	ld de,VSCRBUF+(2*32)+8	; Buffer text coordinates (32,2)px - text start			;9005	11 c8 aa
+	ld a,10					; 10 names to draw on screen							;9008	3e 0a 
+.NEXT_NAME:
+	push af					; save a - names counter								;900a	f5 
+	ld a,5					; 5 chars per name										;900b	3e 05
+.NEXT_CHAR:
+	push af					; save a - chars counter								;900d	f5
+	push de					; save de - destination coord in Offscreen Buffer		;900e	d5 
+	push hl					; save hl - address of current char to draw				;900f	e5 
+	ld a,(hl)				; a - char of name to draw								;9010	7e 
+	call DRAW_CHAR_GFX		; print/draw char into Buffer							;9011	cd e9 98 
+	pop hl					; restore hl - addres of current char just drawn		;9014	e1 
+	pop de					; restore de - destination address in Buffer			;9015	d1 
+	inc hl					; hl - next char to draw								;9016	23 
+	inc de					; de - next destination address							;9017	13 
+	pop af					; restore a - char counter								;9018	f1 
+	dec a					; decrement counter - check if 0						;9019	3d 
+	jr nz,.NEXT_CHAR		; no - draw all 5 chars of current name					;901a	20 f1 
+	push hl					; save hl - next name's 1st char						;901c	e5 
+	push de					; save de - next destination address					;901d	d5
+	inc de					; move destination 1 byte (4px) to the right			;901e	13 
+	inc de					; move destination 2 bytes (8px) total to the right		;901f	13 
+	ld a,'='				; equal sign to draw next to name						;9020	3e 3d 
+	call DRAW_CHAR_GFX		; print/draw '=' into Buffer							;9022	cd e9 98 
+	pop de					; restore de - destination address in buffer			;9025	d1 
+	ld hl,(6*32)-5			; 6 lines down (minus 5 chars of name drawn)			;9026	21 bb 00 
+	add hl,de				; hl - destination in Buffer for next name				;9029	19 
+	ex de,hl				; de - destination in Buffer for next name				;902a	eb 
+	pop hl					; restore hl - next name chars source					;902b	e1 
+	pop af					; restore a - names counter								;902c	f1 
+	dec a					; decrement counter - check if 0						;902d	3d
+	jr nz,.NEXT_NAME		; no - draw all 10 names								;902e	20 da
+; --
+	ld hl,VAR_HS_VALUES		; High Score values - 10 players * 5 digit each			;9030	21 e0 96
+	ld de,VSCRBUF+(2*32)+18	; Buffer text coordinates (32,72)px - text start		;9033	11 d2 aa 
+	ld a,10					; 10 score values for 10 players						;9036	3e 0a
+.NEXT_VALUE:
+	push af					; save a - players counter								;9038	f5 
+	ld a,5					; 5 digits of score										;9039	3e 05 
+.NEXT_DIGIT:
+	push af					; save a - digits counter								;903b	f5 
+	push de					; save de - destination coord in Offscreen Buffer		;903c	d5 
+	push hl					; save hl - address of current digit to draw			;903d	e5  
+	ld a,(hl)				; a - digit value (0..9)								;903e	7e 
+	call DRAW_DIGIT_GFX		; print/draw digit into Buffer							;903f	cd 89 98
+	pop hl					; restore hl - addres of current digit just drawn		;9042	e1  
+	pop de					; restore de - destination address in Buffer			;9043	d1  
+	inc hl					; hl - next char to draw								;9044	23  
+	inc de					; de - next destination address							;9045	13  
+	pop af					; restore a - score digits counter						;9046	f1 
+	dec a					; decrement counter - check if 0						;9047	3d 
+	jr nz,.NEXT_DIGIT		; no - draw all 5 digits of current Score				;9048	20 f1 
+	push hl					; save hl - next score 1st digit						;904a	e5 
+	ld hl,(6*32)-5			; 6 lines down (minus 5 chars of score drawn)			;904b	21 bb 00
+	add hl,de				; hl - destination in Buffer for next score				;904e	19 
+	ex de,hl				; de - destination in Buffer for next score				;904f	eb  
+	pop hl					; restore hl - next score 1st digit						;9050	e1 
+	pop af					; restore a - score values counter						;9051	f1 
+	dec a					; decrement counter - check if 0						;9052	3d  
+	jr nz,.NEXT_VALUE		; no - draw all 10 scores								;9053	20 e3 
+	ret						; ----------------- End of Proc ----------------------- ;9055	c9  
 
 
 
@@ -2875,7 +2882,7 @@ l908dh:
 	push hl			;908e	e5 	. 
 	push de			;908f	d5 	. 
 	ld a,(hl)			;9090	7e 	~ 
-	call sub_9889h		;9091	cd 89 98 	. . . 
+	call DRAW_DIGIT_GFX		;9091	cd 89 98 	. . . 
 	pop de			;9094	d1 	. 
 	pop hl			;9095	e1 	. 
 	pop af			;9096	f1 	. 
@@ -2883,11 +2890,11 @@ l908dh:
 	inc de			;9098	13 	. 
 	dec a			;9099	3d 	= 
 	jr nz,l908dh		;909a	20 f1 	  . 
-	call sub_930eh		;909c	cd 0e 93 	. . . 
+	call SHOW_SCR_WAIT		;909c	cd 0e 93 	. . . 
 	call sub_90dch		;909f	cd dc 90 	. . . 
 	jp z,GAME_START_SCREEN		;90a2	ca cb 8f 	. . . 
 	push af			;90a5	f5 	. 
-	call sub_8fffh		;90a6	cd ff 8f 	. . . 
+	call PRINT_HIGH_SCORES		;90a6	cd ff 8f 	. . . 
 	pop af			;90a9	f1 	. 
 	ld hl,0aac5h		;90aa	21 c5 aa 	! . . 
 	ld de,000c0h		;90ad	11 c0 00 	. . . 
@@ -2917,10 +2924,10 @@ l90b6h:
 	ld (hl),000h		;90d1	36 00 	6 . 
 	inc hl			;90d3	23 	# 
 	ld (hl),050h		;90d4	36 50 	6 P 
-	call sub_930eh		;90d6	cd 0e 93 	. . . 
+	call SHOW_SCR_WAIT		;90d6	cd 0e 93 	. . . 
 	jp GAME_START_SCREEN		;90d9	c3 cb 8f 	. . . 
 sub_90dch:
-	ld de,l96e0h		;90dc	11 e0 96 	. . . 
+	ld de,VAR_HS_VALUES		;90dc	11 e0 96 	. . . 
 	ld b,00ah		;90df	06 0a 	. . 
 	ld c,001h		;90e1	0e 01 	. . 
 l90e3h:
@@ -2972,10 +2979,10 @@ l910fh:
 	sub b			;9119	90 	. 
 	ld b,a			;911a	47 	G 
 	push bc			;911b	c5 	. 
-	ld hl,l9708h		;911c	21 08 97 	! . . 
+	ld hl,VAR_HS_VALUE_9		;911c	21 08 97 	! . . 
 	call sub_92f6h		;911f	cd f6 92 	. . . 
 	pop bc			;9122	c1 	. 
-	ld hl,l96d6h		;9123	21 d6 96 	! . . 
+	ld hl,TXT_HS_NAME_9		;9123	21 d6 96 	! . . 
 	call sub_92f6h		;9126	cd f6 92 	. . . 
 l9129h:
 	pop de			;9129	d1 	. 
@@ -3015,7 +3022,7 @@ l9146h:
 	call sub_92cah		;9168	cd ca 92 	. . . 
 	add hl,bc			;916b	09 	. 
 	call sub_92cah		;916c	cd ca 92 	. . . 
-	call sub_931bh		;916f	cd 1b 93 	. . . 
+	call ANIMATE_SCREEN		;916f	cd 1b 93 	. . . 
 	ld hl,l920eh		;9172	21 0e 92 	! . . 
 	ld (l920ah),hl		;9175	22 0a 92 	" . . 
 	ld de,l920fh		;9178	11 0f 92 	. . . 
@@ -3286,12 +3293,12 @@ sub_92f6h:
 
 ;****************************************************************************************
 ; Make transition to Screen already drawn in Offscreen Buffer
-sub_930eh:
-	call sub_931bh		;930e	cd 1b 93 	. . . 
-	call sub_940fh		;9311	cd 0f 94 	. . . 
-	call sub_940fh		;9314	cd 0f 94 	. . . 
-	call sub_940fh		;9317	cd 0f 94 	. . . 
-	ret			;931a	c9 	. 
+SHOW_SCR_WAIT:
+	call ANIMATE_SCREEN	; show screen drawn in Buffer with animation				;930e	cd 1b 93 
+	call CHECK_STARTUP	; check keys I,P (20 times) and jump to routine if pressed	;9311	cd 0f 94 
+	call CHECK_STARTUP	; check keys I,P (20 times) and jump to routine if pressed	;9314	cd 0f 94  
+	call CHECK_STARTUP	; check keys I,P (20 times) and jump to routine if pressed	;9317	cd 0f 94  
+	ret					; ------------------- End of Proc (no key pressed) -------- ;931a	c9 	
 
 ;****************************************************************************************
 ; Red Frame Animation
@@ -3303,7 +3310,7 @@ sub_930eh:
 ; Starting from center of screen content from buffer is drawn in rectangular areas.
 ; First this rectangle has dimensions 2x4px and whith every next step area is expanded
 ; by  4px verticaly and 8px / 2 bytes horizotal.
-sub_931bh:
+ANIMATE_SCREEN:
 ; -- PHASE 1 - draw rectangles outside in
 	ld hl,VRAM			; screen coord (0,0)px	- rect top-left corner				;931b	21 00 70 
 	ld bc,$401f			; b - 64px rect height, c - 31 bytes rect width				;931e	01 1f 40 
@@ -3462,7 +3469,7 @@ DRAW_LR_BYTES:
 	add hl,bc			; hl - begin of next line in VRAM							;93b6	09 	 
 	pop bc				; restore bc - line width in bytes							;93b7	c1 
 	ret					; ------------------- End of Proc ------------------------- ;93b8	c9 	
-	
+
 
 ;***********************************************************************************************
 ; Draw Red Rectangle Border.
@@ -3539,8 +3546,10 @@ DRAW_LR_BORDER:
 	pop bc				; restore bc - rectangle heigh and width					;93f9	c1
 	ret					; ------------------- End of Proc ------------------------- ;93fa	c9 
 
-
-sub_93fbh:
+;***********************************************************************************************
+; Check keys 'I' and 'P'
+; If key is pressed it jumps to routine SHOW_MANUAL or GAMEPLAY.
+CHECK_STARTUP_KEYS:
 	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;93fb	3a bf 68 
 	bit 3,a					; check if key 'I' is pressed							;93fe	cb 5f 
 	jp z,SHOW_MANUAL		; yes - show Manual/Instruction pages					;9400	ca 4f 9a
@@ -3552,14 +3561,17 @@ sub_93fbh:
 	jp JMP_GAMEPLAY			; jump to GamePlay;940c	c3 03 7d 	. . } 
 
 
-sub_940fh:
-	ld b,20		;940f	06 14 	. . 
-l9411h:
-	ld de,$4000				; delay parameter value									;9411	11 00 40
-	call DELAY_DE			; wait delay											;9414	cd 1d 94 
-	call sub_93fbh		;9417	cd fb 93 	. . . 
-	djnz l9411h		;941a	10 f5 	. . 
-	ret			;941c	c9 	. 
+;***********************************************************************************************
+; Check Startup keys 'I' and 'P' - repeat 20 times
+; If key is pressed it jumps to routine SHOW_MANUAL or GAMEPLAY. If no then check 20 times and return. 
+CHECK_STARTUP:
+	ld b,20				; repeat counter											;940f	06 14 
+.REPEAT:
+	ld de,$4000			; delay parameter value										;9411	11 00 40
+	call DELAY_DE		; wait delay												;9414	cd 1d 94 
+	call CHECK_STARTUP_KEYS	; check keys I and P - jump if pressed					;9417	cd fb 93 
+	djnz .REPEAT		; no key pressed - repeat 20 times							;941a	10 f5 
+	ret					; ------------------- End of Proc ------------------------- ;941c	c9  
 
 
 ;***********************************************************************************************
@@ -3697,113 +3709,36 @@ TXT_KEYS_HELP:
 	defb "     N  =  ROTATE HELICOPTER",13		;9681	20 20 20 20 20 4e 20 20 3d 20 20 52 4f 54 41 54 45 20 48 45 4c 49 43 4f 50 54 45 52 0d 
 	defb "    SPC =  FIRE",0					;969e	20 20 20 20 53 50 43 20 3d 20 20 46 49 52 45 00
 
+; 10 names, 5 chars each of Players with Highest Score
+TXT_HS_NAMES:
+	defb 0,0,0,0,0								;96ae	00 00 00 00 00 
+	defb 0,0,0,0,0								;96b3	00 00 00 00 00 
+	defb 0,0,0,0,0								;96b8	00 00 00 00 00 
+	defb 0,0,0,0,0								;96bd	00 00 00 00 00 
+	defb 0,0,0,0,0								;96c2	00 00 00 00 00 
+	defb 0,0,0,0,0								;96c7	00 00 00 00 00 
+	defb 0,0,0,0,0								;96cc	00 00 00 00 00 
+	defb 0,0,0,0,0								;96d1	00 00 00 00 00 
+TXT_HS_NAME_9:
+	defb 0,0,0,0,0								;96d6	00 00 00 00 00 
+	defb 0,0,0,0,0								;96db	00 00 00 00 00 
 
-l96aeh:
-	nop			;96ae	00 	. 
-l96afh:
-	nop			;96af	00 	. 
-	nop			;96b0	00 	. 
-	nop			;96b1	00 	. 
-	nop			;96b2	00 	. 
-	nop			;96b3	00 	. 
-	nop			;96b4	00 	. 
-	nop			;96b5	00 	. 
-	nop			;96b6	00 	. 
-	nop			;96b7	00 	. 
-	nop			;96b8	00 	. 
-	nop			;96b9	00 	. 
-	nop			;96ba	00 	. 
-	nop			;96bb	00 	. 
-	nop			;96bc	00 	. 
-	nop			;96bd	00 	. 
-	nop			;96be	00 	. 
-	nop			;96bf	00 	. 
-	nop			;96c0	00 	. 
-	nop			;96c1	00 	. 
-	nop			;96c2	00 	. 
-	nop			;96c3	00 	. 
-	nop			;96c4	00 	. 
-	nop			;96c5	00 	. 
-	nop			;96c6	00 	. 
-	nop			;96c7	00 	. 
-	nop			;96c8	00 	. 
-	nop			;96c9	00 	. 
-	nop			;96ca	00 	. 
-	nop			;96cb	00 	. 
-	nop			;96cc	00 	. 
-	nop			;96cd	00 	. 
-	nop			;96ce	00 	. 
-	nop			;96cf	00 	. 
-	nop			;96d0	00 	. 
-	nop			;96d1	00 	. 
-	nop			;96d2	00 	. 
-	nop			;96d3	00 	. 
-	nop			;96d4	00 	. 
-	nop			;96d5	00 	. 
-l96d6h:
-	nop			;96d6	00 	. 
-	nop			;96d7	00 	. 
-	nop			;96d8	00 	. 
-	nop			;96d9	00 	. 
-	nop			;96da	00 	. 
-	nop			;96db	00 	. 
-	nop			;96dc	00 	. 
-	nop			;96dd	00 	. 
-	nop			;96de	00 	. 
-	nop			;96df	00 	. 
-l96e0h:
-	nop			;96e0	00 	. 
-l96e1h:
-	nop			;96e1	00 	. 
-	nop			;96e2	00 	. 
-	nop			;96e3	00 	. 
-	nop			;96e4	00 	. 
-	nop			;96e5	00 	. 
-	nop			;96e6	00 	. 
-	nop			;96e7	00 	. 
-	nop			;96e8	00 	. 
-	nop			;96e9	00 	. 
-	nop			;96ea	00 	. 
-	nop			;96eb	00 	. 
-	nop			;96ec	00 	. 
-	nop			;96ed	00 	. 
-	nop			;96ee	00 	. 
-	nop			;96ef	00 	. 
-	nop			;96f0	00 	. 
-	nop			;96f1	00 	. 
-	nop			;96f2	00 	. 
-	nop			;96f3	00 	. 
-	nop			;96f4	00 	. 
-	nop			;96f5	00 	. 
-	nop			;96f6	00 	. 
-	nop			;96f7	00 	. 
-	nop			;96f8	00 	. 
-	nop			;96f9	00 	. 
-	nop			;96fa	00 	. 
-	nop			;96fb	00 	. 
-	nop			;96fc	00 	. 
-	nop			;96fd	00 	. 
-	nop			;96fe	00 	. 
-	nop			;96ff	00 	. 
-	nop			;9700	00 	. 
-	nop			;9701	00 	. 
-	nop			;9702	00 	. 
-	nop			;9703	00 	. 
-	nop			;9704	00 	. 
-	nop			;9705	00 	. 
-	nop			;9706	00 	. 
-	nop			;9707	00 	. 
-l9708h:
-	nop			;9708	00 	. 
-	nop			;9709	00 	. 
-	nop			;970a	00 	. 
-	nop			;970b	00 	. 
-	nop			;970c	00 	. 
-	nop			;970d	00 	. 
-	nop			;970e	00 	. 
-	nop			;970f	00 	. 
-	nop			;9710	00 	. 
-	nop			;9711	00 	. 
+
+; 10 names, 5 chars each of Players with Highest Score
+VAR_HS_VALUES:
+	defb 0,0,0,0,0								;96e0	00 00 00 00 00 
+	defb 0,0,0,0,0								;96e5	00 00 00 00 00 
+	defb 0,0,0,0,0								;96ea	00 00 00 00 00 
+	defb 0,0,0,0,0								;96ef	00 00 00 00 00 
+	defb 0,0,0,0,0								;96f4	00 00 00 00 00 
+	defb 0,0,0,0,0								;96f9	00 00 00 00 00  
+	defb 0,0,0,0,0								;96fe	00 00 00 00 00 
+	defb 0,0,0,0,0								;9703	00 00 00 00 00 
+VAR_HS_VALUE_9:
+	defb 0,0,0,0,0								;9708	00 00 00 00 00 
+	defb 0,0,0,0,0								;970d	00 00 00 00 00 
+
+
 l9712h:
 	ld hl,0781ah		;9712	21 1a 78 	! . x 
 	ld a,009h		;9715	3e 09 	> . 
@@ -4003,7 +3938,7 @@ l9865h:
 	ret z			;9868	c8 	. 
 	push hl			;9869	e5 	. 
 	cp 020h		;986a	fe 20 	.   
-	call nz,sub_9889h		;986c	c4 89 98 	. . . 
+	call nz,DRAW_DIGIT_GFX		;986c	c4 89 98 	. . . 
 	pop hl			;986f	e1 	. 
 	inc de			;9870	13 	. 
 	inc hl			;9871	23 	# 
@@ -4022,33 +3957,44 @@ l9885h:
 	ld (hl),a			;9886	77 	w 
 	inc hl			;9887	23 	# 
 	ret			;9888	c9 	. 
-sub_9889h:
-	ld hl,SPRTAB_DIGITS		;9889	21 ad 98 	! . . 
-	push de			;988c	d5 	. 
-	ld de,00006h		;988d	11 06 00 	. . . 
-	inc a			;9890	3c 	< 
-l9891h:
-	dec a			;9891	3d 	= 
-	jr z,l9897h		;9892	28 03 	( . 
-	add hl,de			;9894	19 	. 
-	jr l9891h		;9895	18 fa 	. . 
-l9897h:
-	pop de			;9897	d1 	. 
-	push de			;9898	d5 	. 
-	ex de,hl			;9899	eb 	. 
-	ld bc,(BYTES_PER_LINE)		;989a	ed 4b ab 98 	. K . . 
-	ld a,005h		;989e	3e 05 	> . 
+
+
+
+;***********************************************************************************************
+; Print/Draw one Digit on Screen or into Offscreen Buffer in Graphics Mode 1. 
+; IN: a - digit value (0..9) to print/draw
+;     de - destination VRAM or VBUF address
+DRAW_DIGIT_GFX:
+	ld hl,SPRTAB_DIGITS	; Sprites Table for Digits									;9889	21 ad 98
+	push de				; save de - destination VRAM or VBUF address				;988c	d5 
+; -- calculate sprite address in Table: hl = base address + a * 6 bytes per entry
+	ld de,6				; 6 bytes per Sprite data									;988d	11 06 00 
+	inc a				; shift digit value to 1..10								;9890	3c
+.NEXT:
+	dec a				; decrement and check if 0									;9891	3d 
+	jr z,.DRAW_SPRITE	; yes - address found - draw Sprite							;9892	28 03
+	add hl,de			; add 6 bytes - hl points to next entry data				;9894	19 
+	jr .NEXT			; continue until a = 0 										;9895	18 fa 
+; -- hl points to 6 bytes data definition for digit Sprite
+.DRAW_SPRITE:
+	pop de				; restore de - destinadion VRAM or VBUF address				;9897	d1 
+	push de				; save de - destinadion VRAM or VBUF address				;9898	d5 
+	ex de,hl			; de - sprite data, hl - destination address				;9899	eb 
+	ld bc,(BYTES_PER_LINE)	; bc - number of bytes per screen line in cur mode		;989a	ed 4b ab 98
+	ld a,5				; 5 lines to draw (6th is empty)							;989e	3e 05 
 l98a0h:
-	push af			;98a0	f5 	. 
-	ld a,(de)			;98a1	1a 	. 
-	ld (hl),a			;98a2	77 	w 
-	inc de			;98a3	13 	. 
-	add hl,bc			;98a4	09 	. 
-	pop af			;98a5	f1 	. 
-	dec a			;98a6	3d 	= 
-	jr nz,l98a0h		;98a7	20 f7 	  . 
-	pop de			;98a9	d1 	. 
-	ret			;98aa	c9 	. 
+	push af				; save a - lines counter									;98a0	f5
+	ld a,(de)			; a - byte from Sprite data									;98a1	1a 
+	ld (hl),a			; store it to VRAM or Offscreen Buffer						;98a2	77 
+	inc de				; de - address of next Sprite byte							;98a3	13 
+	add hl,bc			; hl - adrres of destination 1 line below					;98a4	09 
+	pop af				; restore a - line counter									;98a5	f1 
+	dec a				; decrement counter - check if 0 							;98a6	3d 
+	jr nz,l98a0h		; no - continue draw all 5 bytes in 5 lines					;98a7	20 f7 
+	pop de				; restore de - original destination VRAM of VBUF address	;98a9	d1 
+	ret					; --------------- End of Proc ----------------------------- ;98aa	c9 
+
+
 
 ;***********************************************************************************************
 ; Variable to store current number of bytes per screen line.
