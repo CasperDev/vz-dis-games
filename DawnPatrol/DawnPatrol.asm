@@ -53,13 +53,35 @@ JOY_PORT_2			equ		$25		; Joystick 1 Input IO Port address
 
 ;***********************************************************************************************
 ; GAME VARIABLES
-JOY_ENABLE			equ		$7800	; 1-joystick enabled, 0-keys only
-BASE_SP				equ		$7cf0	; Base Stack Pointer
-VSCRBUF				equ		$aa80	; Offscreen Buffer - 2816 bytes (44x64) - wide screen 
+; ----------------- GLOBAL ---------------------------------------------------------------------
+JOY_ENABLE			equ		$7800	; (b) 1-joystick enabled, 0-keys only
+
+; ----------------- GAMEPLAY -------------------------------------------------------------------
+PRIS_CAMP_1			equ		$7803	; (b) Number of Prisoners Left in Camp 1
+PRIS_CAMP_2			equ		$7807	; (b) Number of Prisoners Left in Camp 2
+PRIS_CAMP_3			equ		$780b	; (b) Number of Prisoners Left in Camp 3
+PRIS_CAMP_4			equ		$780f	; (b) Number of Prisoners Left in Camp 4
+HELICOPTERS			equ		$7811	; (b) Numer of Helicopters
+SCORE_DIGITS		equ		$7812	; (5b) Digits of Player current Score
+MISSION_TIME		equ		$7817	; (3b/5b?) Digits of Mission current Time
+PRIS_RESCUED		equ		$781d	; (b) Number of Prisoners Rescued so far
+
+;------------------ GAME ROUND -----------------------------------------------------------------
+FUEL_DIGITS			equ		$781a	; (3b) Digits of Fuel Amount Left 
+GAME_ROUND_VARS		equ		$781e	; 240 bytes of variables cleared per Round
+
+
+TTEST_ALL_RESCUED	equ		$7834	; (b) Timer for Check All Rescued
+
 
 
 ;***********************************************************************************************
 ; GAME CONSTANTS
+
+BASE_SP				equ		$7cf0	; Base Stack Pointer
+VSCRBUF				equ		$aa80	; Offscreen Buffer - 2816 bytes (44x64) - wide screen 
+VSTATBUF			equ		$b638	; 32+1 bytes buffer for Top Screen Status Bar
+
 ; -- Input Actions Bits
 UP					equ		0		; bit 0 in input bitmask variable
 DOWN				equ		1		; bit 1 in input bitmask variable
@@ -83,39 +105,60 @@ MAIN
 
 
 JMP_GAMEPLAY:
-	jp l7d06h		;7d03	c3 06 7d 	. . } 
-l7d06h:
-	di			;7d06	f3 	. 
+	jp GAME_PLAY		;7d03	c3 06 7d 	. . } 
+
+
+;***********************************************************************************************
+;
+;    G A M E P L A Y   S T A R T
+;
+;***********************************************************************************************
+
+GAME_PLAY:
+	di					; disable interrupts										;7d06	f3 
 	ld sp,BASE_SP		; reset CPU Stack Pointer to base address					;7d07	31 f0 7c
-l7d0ah:
-	ld hl,la9c5h		;7d0a	21 c5 a9 	! . . 
+
+;***********************************************************************************************
+; Initialize Gamplay Variables to their startup values
+GAME_VARS_INIT:
+; -- fill startup values from predefined table (16 bytes) - see TAB_DEF_VARS
+	ld hl,TAB_DEF_VARS	; (src) table with default values for GamePlay				;7d0a	21 c5 a9
 	ld de,07801h		;7d0d	11 01 78 	. . x 
 	ld bc,00010h		;7d10	01 10 00 	. . . 
 	ldir		;7d13	ed b0 	. . 
-	ld hl,07812h		;7d15	21 12 78 	! . x 
-	ld de,07813h		;7d18	11 13 78 	. . x 
-	ld bc,0000ah		;7d1b	01 0a 00 	. . . 
-	ld (hl),000h		;7d1e	36 00 	6 . 
-	ldir		;7d20	ed b0 	. . 
-	ld hl,07817h		;7d22	21 17 78 	! . x 
-	ld (hl),004h		;7d25	36 04 	6 . 
-	ld a,004h		;7d27	3e 04 	> . 
-	ld (07811h),a		;7d29	32 11 78 	2 . x 
-	xor a			;7d2c	af 	. 
-	ld (0781dh),a		;7d2d	32 1d 78 	2 . x 
-l7d30h:
-	ld hl,0781eh		;7d30	21 1e 78 	! . x 
-	ld de,0781fh		;7d33	11 1f 78 	. . x 
-	ld bc,000efh		;7d36	01 ef 00 	. . . 
-	ld (hl),000h		;7d39	36 00 	6 . 
-	ldir		;7d3b	ed b0 	. . 
-	ld hl,0781ah		;7d3d	21 1a 78 	! . x 
-	ld a,009h		;7d40	3e 09 	> . 
-	ld (hl),a			;7d42	77 	w 
-	inc hl			;7d43	23 	# 
-	ld (hl),a			;7d44	77 	w 
-	inc hl			;7d45	23 	# 
-	ld (hl),a			;7d46	77 	w 
+; -- set Player Score (and Mission Time) to 0 - 10 bytes total
+	ld hl,SCORE_DIGITS	; Digits of Player current Score							;7d15	21 12 78 
+	ld de,SCORE_DIGITS+1; address + 1												;7d18	11 13 78 
+	ld bc,10			; 10 bytes to clear											;7d1b	01 0a 00
+	ld (hl),0			; set 0 value to fill 										;7d1e	36 00 
+	ldir				; fill 10 bytes with value 0								;7d20	ed b0 
+; -- set Mission Time to 4:00 AM
+	ld hl,MISSION_TIME	; Digits of Mission Time (hours)							;7d22	21 17 78 
+	ld (hl),4			; set to 4 (minutes are set above)							;7d25	36 04 
+; -- set initial number of Helicopters for Player
+	ld a,4				; 4 Helicopters to start with								;7d27	3e 04
+	ld (HELICOPTERS),a	; set startup value											;7d29	32 11 78 
+; -- set initial number of Prisoners Rescued
+	xor a				; 0 Prisoners to start with									;7d2c	af 
+	ld (PRIS_RESCUED),a	; set startup value											;7d2d	32 1d 78 
+
+
+GAME_ROUND:
+; -- clear whole area of Round variables - 240 bytes
+	ld hl,GAME_ROUND_VARS	; start addres of Variables to clear					;7d30	21 1e 78
+	ld de,GAME_ROUND_VARS+1	; addres + 1											;7d33	11 1f 78 
+	ld bc,240-1			; 240 to clear 												;7d36	01 ef 00 
+	ld (hl),0			; store default value 0 to fill area 						;7d39	36 00
+	ldir				; fill variables with value 0								;7d3b	ed b0 
+; -- set Fuel Amount Left to 999 (3 digits)
+	ld hl,FUEL_DIGITS	; address of Fuel digits values 							;7d3d	21 1a 78 
+	ld a,9				; initial value 											;7d40	3e 09 
+	ld (hl),a			; store value 												;7d42	77
+	inc hl				; next digit												;7d43	23
+	ld (hl),a			; store value												;7d44	77 
+	inc hl				; next digit												;7d45	23 
+	ld (hl),a			; store digit												;7d46	77 
+
 	ld hl,0012ch		;7d47	21 2c 01 	! , . 
 	ld (07909h),hl		;7d4a	22 09 79 	" . y 
 	ld (0790bh),hl		;7d4d	22 0b 79 	" . y 
@@ -161,8 +204,16 @@ l7d30h:
 	ld de,078d7h		;7db9	11 d7 78 	. . x 
 	ld bc,0001eh		;7dbc	01 1e 00 	. . . 
 	ldir		;7dbf	ed b0 	. . 
-l7dc1h:
-	nop			;7dc1	00 	. 
+
+
+;***********************************************************************************************
+;
+;    G A M E   M A I N   L O O P
+;
+;***********************************************************************************************
+
+GAME_LOOP:
+	nop					; dummy no operation code									;7dc1	00
 	call sub_7e16h		;7dc2	cd 16 7e 	. . ~ 
 	call sub_7e0ch		;7dc5	cd 0c 7e 	. . ~ 
 	call sub_7e2ah		;7dc8	cd 2a 7e 	. * ~ 
@@ -181,16 +232,16 @@ l7dc1h:
 	call sub_8456h		;7def	cd 56 84 	. V . 
 	call sub_85a9h		;7df2	cd a9 85 	. . . 
 	call sub_8580h		;7df5	cd 80 85 	. . . 
-	call sub_7f37h		;7df8	cd 37 7f 	. 7  
+	call TEST_ALL_RESCUED	; test if all 80 Prisoners are Rescued					;7df8	cd 37 7f 
 ; -- check if user press BREAK 
 	ld a,(KEYS_ROW_5)		; select Keyboard row 2 								;7dfb	3a df 68 
 	bit 2,a					; check if key '-' is pressed							;7dfe	cb 57 
-	jr nz,l7dc1h			; no --------------- Continue Game Loop --------------- ;7e00	20 bf 
+	jr nz,GAME_LOOP			; no --------------- Continue Game Loop --------------- ;7e00	20 bf 
 ; -- key '-' is pressed - can be BREAK if CTRL is also pressed
 	ld a,(KEYS_ROW_1)		; select Keyboard row 1 								;7e02	3a fd 68 
 	bit 2,a					; check if key 'CTRL' is pressed?						;7e05	cb 57 
-	jp z,l8f7ch				; yes - ;7e07	ca 7c 8f 	. | . 
-	jr l7dc1h				; no --------------- Continue Game Loop --------------- ;7e0a	18 b5 
+	jp z,JMP_GAME_START_SCR	; yes - jump to Game Start Screen						;7e07	ca 7c 8f 
+	jr GAME_LOOP			; no --------------- Continue Game Loop --------------- ;7e0a	18 b5 
 
 
 sub_7e0ch:
@@ -202,14 +253,18 @@ sub_7e0ch:
 sub_7e16h:
 	call sub_8f73h		;7e16	cd 73 8f 	. s . 
 	ret z			;7e19	c8 	. 
-	ld a,001h		;7e1a	3e 01 	> . 
-l7e1ch:
-	push af			;7e1c	f5 	. 
-	call sub_85a3h		;7e1d	cd a3 85 	. . . 
-	call sub_85a3h		;7e20	cd a3 85 	. . . 
-	call sub_85a3h		;7e23	cd a3 85 	. . . 
-	pop af			;7e26	f1 	. 
-	jp l8f7fh		;7e27	c3 7f 8f 	.  . 
+; Game End - 
+	ld a,1				; Game End Reason - Time is Up								;7e1a	3e 01 
+END_THIS_GAME:
+	push af				; save a - Game End Reason									;7e1c	f5 
+	call DELAY_BC		; wait delay (bc has delay value)							;7e1d	cd a3 85
+	call DELAY_BC		; wait delay (bc has 0 = 65536 from previous call)			;7e20	cd a3 85 
+	call DELAY_BC		; wait delay (bc has 0 = 65536 from previous call)			;7e23	cd a3 85
+	pop af				; restore a - Game End Reason								;7e26	f1
+	jp JMP_GAME_END		; End Game and show Reason --------------------------------	;7e27	c3 7f 8f 
+
+
+
 sub_7e2ah:
 	ld hl,0783ch		;7e2a	21 3c 78 	! < x 
 	dec (hl)			;7e2d	35 	5 
@@ -347,25 +402,36 @@ l7f10h:
 	dec (hl)			;7f1f	35 	5 
 	ret nz			;7f20	c0 	. 
 	ld a,(0782fh)		;7f21	3a 2f 78 	: / x 
-	ld hl,0781dh		;7f24	21 1d 78 	! . x 
+	ld hl,PRIS_RESCUED	; variable with number of Rescued Prisoners					;7f24	21 1d 78
 	add a,(hl)			;7f27	86 	. 
 	ld (hl),a			;7f28	77 	w 
-	ld a,(07811h)		;7f29	3a 11 78 	: . x 
-	dec a			;7f2c	3d 	= 
-	ld (07811h),a		;7f2d	32 11 78 	2 . x 
-	jp nz,l7d30h		;7f30	c2 30 7d 	. 0 } 
-	xor a			;7f33	af 	. 
-	jp l7e1ch		;7f34	c3 1c 7e 	. . ~ 
-sub_7f37h:
-	ld a,(07834h)		;7f37	3a 34 78 	: 4 x 
-	dec a			;7f3a	3d 	= 
-	ld (07834h),a		;7f3b	32 34 78 	2 4 x 
-	ret nz			;7f3e	c0 	. 
-	ld a,(0781dh)		;7f3f	3a 1d 78 	: . x 
-	cp 050h		;7f42	fe 50 	. P 
-	ret nz			;7f44	c0 	. 
-	ld a,002h		;7f45	3e 02 	> . 
-	jp l7e1ch		;7f47	c3 1c 7e 	. . ~ 
+; -- helicopter destroyed - update game variable
+	ld a,(HELICOPTERS)	; number of Player's Helicopters							;7f29	3a 11 78 
+	dec a				; substract 1 - check if all destroyed						;7f2c	3d
+	ld (HELICOPTERS),a	; store new value											;7f2d	32 11 78 
+	jp nz,GAME_ROUND		; no - ;7f30	c2 30 7d 	. 0 } 
+; -- all Helicopters Destroyed - end of Game
+	xor a				; Game End Reason - All Helicopters Destroyed				;7f33	af
+	jp END_THIS_GAME	; End this Game with above Reason -------------------------	;7f34	c3 1c 7e 
+
+
+
+TEST_ALL_RESCUED:
+; -- decrement Timer to check if it's time to test number of Prisoners Rescuted so far
+	ld a,(TTEST_ALL_RESCUED)	; timer value										;7f37	3a 34 78 
+	dec a				; decrement timer - is it time to count Prisoners?			;7f3a	3d
+	ld (TTEST_ALL_RESCUED),a	; store new timer value								;7f3b	32 34 78 
+	ret nz				; no ------------- End of Proc ----------------------------	;7f3e	c0 
+; -- test if all Prisoners are Rescued
+	ld a,(PRIS_RESCUED)	; Number of Prisoners Rescued so far						;7f3f	3a 1d 78 
+	cp 80				; 80 Prisoners to rescue - are all rescued					;7f42	fe 50 
+	ret nz				; no ------------- End of Proc ----------------------------	;7f44	c0
+; -- all Prisoners Rescued - end of Game
+	ld a,2				; Game End Reason - No Prisoners Left to Rescue				;7f45	3e 02 
+	jp END_THIS_GAME	; End this Game with above Reason -------------------------	;7f47	c3 1c 7e 
+
+
+
 sub_7f4ah:
 	ld a,(07838h)		;7f4a	3a 38 78 	: 8 x 
 	or a			;7f4d	b7 	. 
@@ -1246,13 +1312,24 @@ sub_8580h:
 	xor 020h		;859a	ee 20 	.   
 	ld (0788bh),a		;859c	32 8b 78 	2 . x 
 	ret			;859f	c9 	. 
-	ld bc,0001eh		;85a0	01 1e 00 	. . . 
-sub_85a3h:
-	dec bc			;85a3	0b 	. 
-	ld a,b			;85a4	78 	x 
-	or c			;85a5	b1 	. 
-	jr nz,sub_85a3h		;85a6	20 fb 	  . 
-	ret			;85a8	c9 	. 
+
+;***********************************************************************************************
+; DEAD CODE (never used)
+; Perform Delay of 30 loops
+	ld bc,30			; bc - delay value											;85a0	01 1e 00 
+
+;***********************************************************************************************
+; DEAD CODE (never used)
+; Perform Delay of number of loops given in bc
+; IN: bc - delay value 
+DELAY_BC:
+	dec bc				; decrement bc - delay counter								;85a3	0b 
+	ld a,b				; check if bc is 0											;85a4	78 
+	or c				;															;85a5	b1 
+	jr nz,DELAY_BC		; no - wait more											;85a6	20 fb 
+	ret					; ------------------ End of Proc --------------------------	;85a8	c9 
+
+
 sub_85a9h:
 	nop			;85a9	00 	. 
 	ld hl,078f9h		;85aa	21 f9 78 	! . x 
@@ -1261,7 +1338,7 @@ sub_85a9h:
 	ld (hl),01eh		;85af	36 1e 	6 . 
 	call sub_86edh		;85b1	cd ed 86 	. . . 
 	call sub_8788h		;85b4	cd 88 87 	. . . 
-	call sub_8f70h		;85b7	cd 70 8f 	. p . 
+	call JMP_PRINT_STATBAR	; print Status Bar at the Top of Screen					;85b7	cd 70 8f 
 	call sub_8d81h		;85ba	cd 81 8d 	. . . 
 	call sub_8c39h		;85bd	cd 39 8c 	. 9 . 
 	call sub_8c88h		;85c0	cd 88 8c 	. . . 
@@ -2681,18 +2758,18 @@ DELAY_B:
 ;
 ;***********************************************************************************************
 
-sub_8f70h:
-	jp l97fch		;8f70	c3 fc 97 	. . . 
+JMP_PRINT_STATBAR:
+	jp PRINT_STATBAR_BUF	; jum to PRINT_STATBAR_BUF routine					;8f70	c3 fc 97 
 sub_8f73h:
 	jp l9786h		;8f73	c3 86 97 	. . . 
 sub_8f76h:
 	jp l97b7h		;8f76	c3 b7 97 	. . . 
 sub_8f79h:
 	jp l9712h		;8f79	c3 12 97 	. . . 
-l8f7ch:
+JMP_GAME_START_SCR:
 	jp GAME_START_SCREEN		;8f7c	c3 cb 8f 	. . . 
-l8f7fh:
-	jp l9056h		;8f7f	c3 56 90 	. V . 
+JMP_GAME_END:
+	jp GAME_END		;8f7f	c3 56 90 	. V . 
 JMP_GAME_INIT:
 	jp GAME_INIT			; jump to GAME_INIT routine							;8f82	c3 88 8f 
 sub_8f85h:
@@ -2848,7 +2925,7 @@ PRINT_HIGH_SCORES:
 
 
 
-l9056h:
+GAME_END:
 ; -- check end of mission reason
 	ld hl,TXT_ALL_HEL_DESTROYED	; All Helicopters Destroyed text					;9056	21 5e 94
 	or a					; chack if reason 0 									;9059	b7 
@@ -2856,46 +2933,51 @@ l9056h:
 	ld hl,TXT_TIME_UP		; Time Up text 											;905c	21 7d 94 
 	cp 1					; check if reason 1 									;905f	fe 01 
 	jr z,l9066h				; yes - show Mission Over screen						;9061	28 03 
-; -- reason > 1 - must be No Prisoners Left to Rescue
+; -- reason = 2 - No Prisoners Left to Rescue
 	ld hl,TXT_NO_PRIS_LEFT	; No Prisoners Left To Rescue							;9063	21 99 94 
 l9066h:
 	push hl					; save hl - Reason text									;9066	e5
+; -- clear screen buffer and reset bytes per line value
 	ld hl,32				; 32 bytes per screen line 								;9067	21 20 00 
-	ld (BYTES_PER_LINE),hl			;906a	22 ab 98 	" . . 
-	call CLEAR_SCRBUF_GFX			;906d	cd 46 94 	. F . 
+	ld (BYTES_PER_LINE),hl	; restore 32 bytes per line (inside Game was 44)		;906a	22 ab 98 
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Bufferr 								;906d	cd 46 94 
 ; -- print Mission Over screen with reason and Score into Offscreen Buffer
 	ld hl,TXT_MISSION_OVER	; Mission Over text										;9070	21 b9 94
 	ld de,VSCRBUF			; dst - Offscreen Buffer								;9073	11 80 aa 
 	call PRINT_TEXT_GFX		; print Mission Over text in Offscreen Buffer			;9076	cd 23 94 
-	pop hl				;9079	e1 	. 
+	pop hl					; restore hl - Game End Reason text						;9079	e1 
 	call PRINT_TEXT_GFX		; print Reason text in Offscreen Buffer					;907a	cd 23 94 
 	ld hl,TXT_YOUR_SCORE	; Your Score Was text									;907d	21 d3 94 
 	call PRINT_TEXT_GFX		; print Your Score Was text in Offscreen Buffer			;9080	cd 23 94 
-; --
-	ld hl,00015h		;9083	21 15 00 	! . . 
-	add hl,de			;9086	19 	. 
-	ex de,hl			;9087	eb 	. 
-	ld hl,07812h		;9088	21 12 78 	! . x 
-	ld a,005h		;908b	3e 05 	> . 
-l908dh:
-	push af			;908d	f5 	. 
-	push hl			;908e	e5 	. 
-	push de			;908f	d5 	. 
-	ld a,(hl)			;9090	7e 	~ 
-	call DRAW_DIGIT_GFX		;9091	cd 89 98 	. . . 
-	pop de			;9094	d1 	. 
-	pop hl			;9095	e1 	. 
-	pop af			;9096	f1 	. 
-	inc hl			;9097	23 	# 
-	inc de			;9098	13 	. 
-	dec a			;9099	3d 	= 
-	jr nz,l908dh		;909a	20 f1 	  . 
-	call SHOW_SCR_WAIT		;909c	cd 0e 93 	. . . 
-	call sub_90dch		;909f	cd dc 90 	. . . 
-	jp z,GAME_START_SCREEN		;90a2	ca cb 8f 	. . . 
-	push af			;90a5	f5 	. 
-	call PRINT_HIGH_SCORES		;90a6	cd ff 8f 	. . . 
-	pop af			;90a9	f1 	. 
+; -- after above calls de is equal to Buffer address of start next line below printed text 
+	ld hl,21				; 21 bytes (44 pixels) do add							;9083	21 15 00 
+	add hl,de				; hl - address in Offscreen Buffer with offset			;9086	19 
+; -- print into Buffer 5 digits of Player Score
+	ex de,hl				; de - destination addres for Player Score				;9087	eb 
+	ld hl,SCORE_DIGITS		; Digits of Player current Score						;9088	21 12 78 
+	ld a,5					; 5 digits of Score Value								;908b	3e 05
+.NEXT_DIGIT:
+	push af					; save a - score digits counter							;908d	f5
+	push hl					; save hl - address of current digit to draw			;908e	e5 
+	push de					; save de - destination address in Buffer				;908f	d5 
+	ld a,(hl)				; a - digit value										;9090	7e 
+	call DRAW_DIGIT_GFX		; print/draw digit into buffer							;9091	cd 89 98 
+	pop de					; restore de - destination address in Buffer			;9094	d1 
+	pop hl					; save hl - address of current digit just drawn			;9095	e1 
+	pop af					; save a - score digits counter							;9096	f1 
+	inc hl					; next digit to draw									;9097	23
+	inc de					; destination address for next digit					;9098	13 
+	dec a					; decrement digits counter - check if 0					;9099	3d 
+	jr nz,.NEXT_DIGIT		; no - draw all 5 digits of Player Score				;909a	20 f1 
+; -- draw buffer on Screen with Red Frame Animation and wait 
+	call SHOW_SCR_WAIT		; show Game End Screen (anim) and wait for key I or P	;909c	cd 0e 93
+	call CHECK_HIGHSCORE	; check if Player has top 10 score and get Name if so	;909f	cd dc 90 
+	jp z,GAME_START_SCREEN	; Z=1 no place in High Score Table for Player - start	;90a2	ca cb 8f 
+; -- player had Score enough to take place in top 10 table - show High Scores Screen
+	push af					; save af - index in HS Table							;90a5	f5 
+	call PRINT_HIGH_SCORES	; show High Score Table with Red Rect animation			;90a6	cd ff 8f 
+	pop af					; restore af - index in HS Table						;90a9	f1
+
 	ld hl,0aac5h		;90aa	21 c5 aa 	! . . 
 	ld de,000c0h		;90ad	11 c0 00 	. . . 
 l90b0h:
@@ -2926,370 +3008,454 @@ l90b6h:
 	ld (hl),050h		;90d4	36 50 	6 P 
 	call SHOW_SCR_WAIT		;90d6	cd 0e 93 	. . . 
 	jp GAME_START_SCREEN		;90d9	c3 cb 8f 	. . . 
-sub_90dch:
-	ld de,VAR_HS_VALUES		;90dc	11 e0 96 	. . . 
-	ld b,00ah		;90df	06 0a 	. . 
-	ld c,001h		;90e1	0e 01 	. . 
-l90e3h:
-	ld hl,07812h		;90e3	21 12 78 	! . x 
-	ld a,(de)			;90e6	1a 	. 
-	cp (hl)			;90e7	be 	. 
-	jp m,l910fh		;90e8	fa 0f 91 	. . . 
-	jr z,l90efh		;90eb	28 02 	( . 
-	jr l9103h		;90ed	18 14 	. . 
-l90efh:
-	inc hl			;90ef	23 	# 
-	inc de			;90f0	13 	. 
-	ld a,(de)			;90f1	1a 	. 
-	cp (hl)			;90f2	be 	. 
-	jp m,l910eh		;90f3	fa 0e 91 	. . . 
-	jr z,l90fah		;90f6	28 02 	( . 
-	jr l9104h		;90f8	18 0a 	. . 
-l90fah:
-	inc hl			;90fa	23 	# 
-	inc de			;90fb	13 	. 
-	ld a,(de)			;90fc	1a 	. 
-	cp (hl)			;90fd	be 	. 
-	jp m,l910dh		;90fe	fa 0d 91 	. . . 
-	jr l9105h		;9101	18 02 	. . 
-l9103h:
-	inc de			;9103	13 	. 
-l9104h:
-	inc de			;9104	13 	. 
-l9105h:
-	inc de			;9105	13 	. 
-	inc de			;9106	13 	. 
-	inc de			;9107	13 	. 
-	inc c			;9108	0c 	. 
-	djnz l90e3h		;9109	10 d8 	. . 
-	xor a			;910b	af 	. 
-	ret			;910c	c9 	. 
-l910dh:
-	dec de			;910d	1b 	. 
-l910eh:
-	dec de			;910e	1b 	. 
-l910fh:
-	ld a,c			;910f	79 	y 
-	push af			;9110	f5 	. 
-	push de			;9111	d5 	. 
-	cp 00ah		;9112	fe 0a 	. . 
-	jr z,l9129h		;9114	28 13 	( . 
-	ld b,a			;9116	47 	G 
-	ld a,00ah		;9117	3e 0a 	> . 
-	sub b			;9119	90 	. 
-	ld b,a			;911a	47 	G 
-	push bc			;911b	c5 	. 
-	ld hl,VAR_HS_VALUE_9		;911c	21 08 97 	! . . 
-	call sub_92f6h		;911f	cd f6 92 	. . . 
-	pop bc			;9122	c1 	. 
-	ld hl,TXT_HS_NAME_9		;9123	21 d6 96 	! . . 
-	call sub_92f6h		;9126	cd f6 92 	. . . 
-l9129h:
-	pop de			;9129	d1 	. 
-	push de			;912a	d5 	. 
-	ld hl,07812h		;912b	21 12 78 	! . x 
-	ld bc,00005h		;912e	01 05 00 	. . . 
-	ldir		;9131	ed b0 	. . 
-	pop hl			;9133	e1 	. 
-	ld de,00032h		;9134	11 32 00 	. 2 . 
-	or a			;9137	b7 	. 
-	sbc hl,de		;9138	ed 52 	. R 
-	push hl			;913a	e5 	. 
-	call CLEAR_SCRBUF_GFX		;913b	cd 46 94 	. F . 
-	ld hl,TXT_CHAR_TAB	; Characters Table text										;913e	21 ea 94 
-	ld de,0ab40h		;9141	11 40 ab 	. @ . 
-	ld a,005h		;9144	3e 05 	> . 
-l9146h:
-	push af			;9146	f5 	. 
-	call PRINT_TEXT_GFX	; print Character Table into Offscreen Buffer				;9147	cd 23 94 
-	inc hl			;914a	23 	# 
-	push hl			;914b	e5 	. 
-	ld hl,00120h		;914c	21 20 01 	!   . 
-	add hl,de			;914f	19 	. 
-	ex de,hl			;9150	eb 	. 
-	pop hl			;9151	e1 	. 
-	pop af			;9152	f1 	. 
-	dec a			;9153	3d 	= 
-	jr nz,l9146h		;9154	20 f0 	  . 
-	ld hl,0b0c2h		;9156	21 c2 b0 	! . . 
-	ld bc,00006h		;9159	01 06 00 	. . . 
-	call sub_92cah		;915c	cd ca 92 	. . . 
-	add hl,bc			;915f	09 	. 
-	call sub_92cah		;9160	cd ca 92 	. . . 
-	add hl,bc			;9163	09 	. 
-	call sub_92cah		;9164	cd ca 92 	. . . 
-	add hl,bc			;9167	09 	. 
-	call sub_92cah		;9168	cd ca 92 	. . . 
-	add hl,bc			;916b	09 	. 
-	call sub_92cah		;916c	cd ca 92 	. . . 
-	call ANIMATE_SCREEN		;916f	cd 1b 93 	. . . 
-	ld hl,l920eh		;9172	21 0e 92 	! . . 
-	ld (l920ah),hl		;9175	22 0a 92 	" . . 
-	ld de,l920fh		;9178	11 0f 92 	. . . 
-	ld bc,00004h		;917b	01 04 00 	. . . 
-	ld (hl),020h		;917e	36 20 	6   
-	ldir		;9180	ed b0 	. . 
-	ld hl,07684h		;9182	21 84 76 	! . v 
-	ld (l920ch),hl		;9185	22 0c 92 	" . . 
-	xor a			;9188	af 	. 
-	ld (l9209h),a		;9189	32 09 92 	2 . . 
-	ld a,041h		;918c	3e 41 	> A 
-	ld (l9208h),a		;918e	32 08 92 	2 . . 
-	ld hl,07081h		;9191	21 81 70 	! . p 
-	ld bc,00101h		;9194	01 01 01 	. . . 
-l9197h:
-	call sub_92cah		;9197	cd ca 92 	. . . 
-l919ah:
-	ld de,$6000				; delay parameter value 								;919a	11 00 60 
-	call DELAY_DE			; wait delay											;919d	cd 1d 94 
-l91a0h:
-	ld a,(KEYS_ROW_4)		; select Keyboard row 4 								;91a0	3a ef 68
-	bit 3,a					; check if key ',' is pressed							;91a3	cb 5f 
-	jr z,l91bch		; yes - ;91a5	28 15 	( . 
-	bit 5,a					; check if key 'M' is pressed							;91a7	cb 6f 
-	jr z,l91c0h		; yes - ;91a9	28 15 	( . 
-	bit 1,a					; check if key '.' is pressed							;91ab	cb 4f 
-	jr z,l91c4h		; yes - ;91ad	28 15 	( . 
-	bit 4,a					; check if key 'SPACE' is pressed						;91af	cb 67
-	jr z,l91c8h		; yes - ;91b1	28 15 	( . 
-	ld a,(KEYS_ROW_6)		; select Keyboard row 6 								;91b3	3a bf 68 
-	bit 2,a					; check if 'RETURN' key is pressed						;91b6	cb 57 
-	jr z,l9213h		; yes - ;91b8	28 59 	( Y 
-	jr l91a0h				; wait for one of defined keys							;91ba	18 e4 
-; -- key ',' (comma) is pressed
-l91bch:
-	ld a,001h		;91bc	3e 01 	> . 
-	jr l91cah		;91be	18 0a 	. . 
-; -- key 'M' is pressed
-l91c0h:
-	ld a,01dh		;91c0	3e 1d 	> . 
-	jr l91cah		;91c2	18 06 	. . 
-; -- key '.' (dot) is pressed
-l91c4h:
-	ld a,018h		;91c4	3e 18 	> . 
-	jr l91cah		;91c6	18 02 	. . 
-; -- key 'SPACE' is pressed
-l91c8h:
-	ld a,006h		;91c8	3e 06 	> . 
-l91cah:
-	push af			;91ca	f5 	. 
-	call sub_929eh		;91cb	cd 9e 92 	. . . 
-	pop af			;91ce	f1 	. 
-l91cfh:
-	push af			;91cf	f5 	. 
-	call sub_91d9h		;91d0	cd d9 91 	. . . 
-	pop af			;91d3	f1 	. 
-	dec a			;91d4	3d 	= 
-	jr nz,l91cfh		;91d5	20 f8 	  . 
-	jr l9197h		;91d7	18 be 	. . 
-sub_91d9h:
-	nop			;91d9	00 	. 
-	ld a,(l9208h)		;91da	3a 08 92 	: . . 
-	inc a			;91dd	3c 	< 
-	ld (l9208h),a		;91de	32 08 92 	2 . . 
-	ld a,b			;91e1	78 	x 
-	cp 006h		;91e2	fe 06 	. . 
-	jr z,l91edh		;91e4	28 07 	( . 
-	inc b			;91e6	04 	. 
-	inc hl			;91e7	23 	# 
-	inc hl			;91e8	23 	# 
-	inc hl			;91e9	23 	# 
-	inc hl			;91ea	23 	# 
-	inc hl			;91eb	23 	# 
-	ret			;91ec	c9 	. 
-l91edh:
-	ld b,001h		;91ed	06 01 	. . 
-	ld a,c			;91ef	79 	y 
-	cp 005h		;91f0	fe 05 	. . 
-	jr z,l91fah		;91f2	28 06 	( . 
-	ld de,00107h		;91f4	11 07 01 	. . . 
-	add hl,de			;91f7	19 	. 
-	inc c			;91f8	0c 	. 
-	ret			;91f9	c9 	. 
-l91fah:
-	ld de,00499h		;91fa	11 99 04 	. . . 
-	or a			;91fd	b7 	. 
-	sbc hl,de		;91fe	ed 52 	. R 
-	ld c,001h		;9200	0e 01 	. . 
-	ld a,041h		;9202	3e 41 	> A 
-	ld (l9208h),a		;9204	32 08 92 	2 . . 
-	ret			;9207	c9 	. 
-l9208h:
-	nop			;9208	00 	. 
-l9209h:
-	nop			;9209	00 	. 
-l920ah:
-	nop			;920a	00 	. 
-	nop			;920b	00 	. 
-l920ch:
-	nop			;920c	00 	. 
-	nop			;920d	00 	. 
-l920eh:
-	nop			;920e	00 	. 
-l920fh:
-	nop			;920f	00 	. 
-	nop			;9210	00 	. 
-	nop			;9211	00 	. 
-	nop			;9212	00 	. 
 
-; -- key 'RETURN' is pressed
-l9213h:
-	push bc			;9213	c5 	. 
-	push hl			;9214	e5 	. 
-	ld a,(l9208h)		;9215	3a 08 92 	: . . 
-	cp 05bh		;9218	fe 5b 	. [ 
-	jr z,l9256h		;921a	28 3a 	( : 
-	cp 05ch		;921c	fe 5c 	. \ 
-	jr z,l925ah		;921e	28 3a 	( : 
-	cp 05dh		;9220	fe 5d 	. ] 
-	jr z,l925eh		;9222	28 3a 	( : 
-	cp 05eh		;9224	fe 5e 	. ^ 
-	jr z,l9290h		;9226	28 68 	( h 
-l9228h:
-	ld hl,(l920ah)		;9228	2a 0a 92 	* . . 
-	ld (hl),a			;922b	77 	w 
-	ld de,(l920ch)		;922c	ed 5b 0c 92 	. [ . . 
+
+
+CHECK_HIGHSCORE:
+	ld de,VAR_HS_VALUES	; High Scores Values table									;90dc	11 e0 96 
+	ld b,10				; 10 values for 10 players									;90df	06 0a 
+	ld c,1				; High Score index being compared 							;90e1	0e 01 
+.CMP_ENTRY:
+	ld hl,SCORE_DIGITS	; Digits of Player current Score							;90e3	21 12 78 
+	ld a,(de)			; 1st digit of Score from High Scores Table					;90e6	1a 
+	cp (hl)				; copmare with 1st digit of Player's Score					;90e7	be 
+	jp m,FOUND_DIG_1	; less - found position for Player Score					;90e8	fa 0f 91 
+	jr z,.CMP_2ND_DIGIT	; equal - copmare 2nd digits								;90eb	28 02
+	jr .NEXT_SKIP_5		; greater - compare next HS table entry (skip 5 digits)		;90ed	18 14 
+; -- 1st digits from High Score entry and Player Score are EQUAL
+.CMP_2ND_DIGIT:
+	inc hl				; hl - address of 2nd digit of Player Score					;90ef	23 
+	inc de				; de - address of 2nd digit of HS entry Score				;90f0	13 
+	ld a,(de)			; 2nd digit of Score from High Scores Table					;90f1	1a 
+	cp (hl)				; copmare with 2nd digit of Player's Score					;90f2	be 
+	jp m,FOUND_DIG_2	; less - found position for Player Score					;90f3	fa 0e 91 
+	jr z,.CMP_3RD_DIGIT	; equal - compare 3rd digits								;90f6	28 02 
+	jr .NEXT_SKIP_4		; greater - compare next HS table entry (skip 4 digits)		;90f8	18 0a 
+; -- 2nd digits from High Score entry and Player Score are EQUAL
+.CMP_3RD_DIGIT:
+	inc hl				; hl - address of 3rd digit of Player Score					;90fa	23  
+	inc de				; de - address of 3rd digit of HS entry Score				;90fb	13
+	ld a,(de)			; 3rd digit of Score from High Scores Table					;90fc	1a  
+	cp (hl)				; copmare with 3rd digit of Player's Score					;90fd	be  
+	jp m,FOUND_DIG_3	; less - found position for Player Score					;90fe	fa 0d 91 
+	jr .NEXT_SKIP_3		; greater or equal - compare next HS entry (skip 3 digits)	;9101	18 02 
+
+.NEXT_SKIP_5:
+	inc de				; skip 1 digit in High Score table							;9103	13 
+.NEXT_SKIP_4:
+	inc de				; skip 1 digit in High Score table							;9104	13  
+.NEXT_SKIP_3:
+	inc de				; skip 1 digit in High Score table							;9105	13 
+	inc de				; skip 1 digit in High Score table							;9106	13  
+	inc de				; de - address of next entry in High Score table			;9107	13 
+	inc c				; incrase High Score index									;9108	0c 
+	djnz .CMP_ENTRY		; compare next entry until all 10 are compared				;9109	10 d8 
+
+; -- all values in High Score table are equal or greater than Player Score
+	xor a				; set return value 0 and CPU flags 							;910b	af 
+	ret					; ---------------- End of Proc (0) ------------------------ ;910c	c9
+
+; -- Found in HS table entry with vale less than current Player Score
+; -- fix de to point to start of entry 
+FOUND_DIG_3:
+	dec de				; de - address of 2nd digit of entry in HS Table 			;910d	1b 
+FOUND_DIG_2:
+	dec de				; de - address of 1st digit of entry in HS Table 			;910e	1b 
+FOUND_DIG_1:
+; -- if it's 10th place just override HS entry, if less we need to insert new entry
+	ld a,c				; a - index in High Score Table								;910f	79 
+	push af				; save a - table index 										;9110	f5 
+	push de				; save de - address of entry value							;9111	d5 
+	cp 10				; is this last (10th) place?								;9112	fe 0a 
+	jr z,COPY_PLAYER_SCORE	; yes - skip inserting empty entry						;9114	28 13 
+;-- insert empty entry - shift down all entries below index
+	ld b,a				; b - index to insert 										;9116	47
+	ld a,10				; 10 entries on list										;9117	3e 0a 
+	sub b				; a - numbers of entries to shift down						;9119	90
+	ld b,a				; b - numbers of entries to shift down						;911a	47 
+; -- shift High Score Values
+	push bc				; save b - number of entries								;911b	c5 
+	ld hl,VAR_HS_VALUE_9; hl - address of 9th value in HS Table  					;911c	21 08 97
+	call MOVE_HS_ENTRIES; move High Score entries down 								;911f	cd f6 92 
+; -- shift High Score Names
+	pop bc				; restore b - number of entries								;9122	c1 
+	ld hl,TXT_HS_NAME_9	; hl - address of 9th name in HS Table						;9123	21 d6 96 
+	call MOVE_HS_ENTRIES; move High Score entries down								;9126	cd f6 92
+COPY_PLAYER_SCORE:
+; -- copy Player Score to entry of High Score Table 
+	pop de				; dst - address of High Score entry 						;9129	d1 
+	push de				; save de - addres of High Score entry						;912a	d5 
+	ld hl,SCORE_DIGITS	; Digits of Player current Score							;912b	21 12 78 
+	ld bc,5				; 5 digits of Score Value									;912e	01 05 00 
+	ldir				; copy digits to High Score Table							;9131	ed b0 
+; -- calculate address of Name in High Score Names Table 
+	pop hl				; address of High Score Values entry 						;9133	e1 
+	ld de,50			; 50 bytes offset beetween Names and Values in HS Table		;9134	11 32 00 
+	or a				; clear Carry flag											;9137	b7 
+	sbc hl,de			; hl - address of High Score Name entry						;9138	ed 52 
+	push hl				; save hl - address of HS entry to place Player name		;913a	e5 
+; -- let Player name himself - draw Characters Table 
+	call CLEAR_SCRBUF_GFX	; clear Offscreen Buffer 								;913b	cd 46 94 
+	ld hl,TXT_CHAR_TAB	; Characters Table text										;913e	21 ea 94 
+	ld de,VSCRBUF+(6*32)+0	; screen position (0,6)px (Buffer)						;9141	11 40 ab 
+	ld a,5				; 5 rows of characters to draw								;9144	3e 05 
+.NEXT_ROW:
+	push af				; save a - row counter										;9146	f5
+	call PRINT_TEXT_GFX	; print 1 row of Character Table into Offscreen Buffer		;9147	cd 23 94 
+	inc hl				; skip null terminator										;914a	23 
+	push hl				; save hl - address of next row 							;914b	e5 
+	ld hl,9*32			; 9 lines/pixels down										;914c	21 20 01 
+	add hl,de			; hl - new destination address in Buffer					;914f	19 
+	ex de,hl			; de - new destination addres								;9150	eb
+	pop hl				; restore hl - next row of Charactes from Table				;9151	e1 
+	pop af				; restore a - row counter									;9152	f1 
+	dec a				; decrement counter - check if 0							;9153	3d 
+	jr nz,.NEXT_ROW		; no - draw all 5 rows from Character Table					;9154	20 f0 
+; -- draw rectangles/frames for 5 chars of Player Name (into Offscreen Buffer)
+	ld hl,VSCRBUF+(50*32)+2	; screen position (8,50)px (Buffer)						;9156	21 c2 b0 
+	ld bc,6				; 6 bytes (24px) per 1 char 								;9159	01 06 00 
+	call DRAW_CHAR_FRAME; draw frame for 1st char									;915c	cd ca 92
+	add hl,bc			; hl - dst address for next frame							;915f	09 
+	call DRAW_CHAR_FRAME; draw frame for 2nd char									;9160	cd ca 92 
+	add hl,bc			; hl - dst address for next frame							;9163	09 
+	call DRAW_CHAR_FRAME; draw frame for 3rd char									;9164	cd ca 92
+	add hl,bc			; hl - dst address for next frame							;9167	09 
+	call DRAW_CHAR_FRAME; draw frame for 4th char									;9168	cd ca 92 
+	add hl,bc			; hl - dst address for next frame							;916b	09 
+	call DRAW_CHAR_FRAME; draw frame for 5th char									;916c	cd ca 92 
+; -- display screen
+	call ANIMATE_SCREEN	; show screen from Buffer with animation					;916f	cd 1b 93 
+; -- reset buffer for player name (5 char) - fill with spaces and set current slot
+	ld hl,NAME_BUFFER	; address of 5 char buffer									;9172	21 0e 92
+	ld (SEL_CHAR_SLOT),hl	; set 1st char address as current slot					;9175	22 0a 92 
+	ld de,NAME_BUFFER+1	; address + 1												;9178	11 0f 92 
+	ld bc,4				; 4 bytes to fill with ' ' (space)							;917b	01 04 00 
+	ld (hl),' '			; set 1rs char to ' ' (space)								;917e	36 20
+	ldir				; fill 4 bytes with ' '										;9180	ed b0 
+; -- reset destination VRAM address where char will be drawn
+	ld hl,VRAM+(52*32)+4; destination VRAM address (16,53)px of current slot char	;9182	21 84 76
+	ld (SEL_SLOT_VRAM),hl	; set as current VRAM for current Slot					;9185	22 0c 92 
+; -- select first char form Table - that will be 'A'
+	xor a				; 0 based index in char table								;9188	af
+	ld (SEL_SLOT_IDX),a	; set 'A' as selected char									;9189	32 09 92 
+	ld a,'A'			; char 'A' is current selection								;918c	3e 41
+	ld (SEL_CHAR),a		; set as selected char										;918e	32 08 92 
+; -- draw Frame around char 'A' on screen
+	ld hl,VRAM+(4*32)+1	; screen coord (4,4)px										;9191	21 81 70 
+	ld bc,$0101			; bc - x,y coord in CHAR_TAB (1 based)						;9194	01 01 01 
+DRAW_SEL_AND_WAIT:
+	call DRAW_CHAR_FRAME; draw frame around selected char							;9197	cd ca 92 
+DELAY_AND_WAIT:
+	ld de,$6000			; delay parameter value 									;919a	11 00 60 
+	call DELAY_DE		; wait delay												;919d	cd 1d 94 
+.WAIT_FOR_KEY:
+; -- test keys pressed - arrows doesn't require pressing CTRL key
+	ld a,(KEYS_ROW_4)	; select Keyboard row 4 									;91a0	3a ef 68
+	bit 3,a				; check if key ',' is pressed (right arrow)					;91a3	cb 5f 
+	jr z,MOV_SEL_RIGHT	; yes - move selection right								;91a5	28 15 
+	bit 5,a				; check if key 'M' is pressed (left arrow)					;91a7	cb 6f 
+	jr z,MOV_SEL_LEFT	; yes - move selection left									;91a9	28 15 
+	bit 1,a				; check if key '.' is pressed (up arrow)					;91ab	cb 4f 
+	jr z,MOV_SEL_UP		; yes - move selection up									;91ad	28 15 
+	bit 4,a				; check if key 'SPACE' is pressed (down arrow)				;91af	cb 67
+	jr z,MOV_SEL_DOWN	; yes - move selection down									;91b1	28 15 
+	ld a,(KEYS_ROW_6)	; select Keyboard row 6 									;91b3	3a bf 68 
+	bit 2,a				; check if 'RETURN' key is pressed 							;91b6	cb 57 
+	jr z,CHAR_SELECTED	; yes - confirm selected char								;91b8	28 59 
+	jr .WAIT_FOR_KEY	; wait for one of defined keys								;91ba	18 e4 
+
+; -- key ',' (comma) is pressed (right arrow)
+MOV_SEL_RIGHT:
+	ld a,1				; offset to add to current char index (next char)			;91bc	3e 01 
+	jr MOV_SELECTION	; move current selection									;91be	18 0a 
+; -- key 'M' is pressed (left arrow)
+MOV_SEL_LEFT:
+	ld a,29				; offset to add to current char index (previos char)		;91c0	3e 1d 
+	jr MOV_SELECTION	; move current selection									;91c2	18 06 
+; -- key '.' (dot) is pressed (up arrow)
+MOV_SEL_UP:
+	ld a,24				; offset to add to current char index (above char)			;91c4	3e 18 
+	jr MOV_SELECTION	; move current selection									;91c6	18 02 
+; -- key 'SPACE' is pressed (down arrow)
+MOV_SEL_DOWN:
+	ld a,6				; offset to add to current char index (below char)			;91c8	3e 06 
+
+
+;*************************************************************************************
+; Move Selection of Char from CHAR_TAB
+; Char table has 30 chars/actions in grid (5 rows by 6 columns). Next selected index
+; is calculated by current index plus A parameter modulo 30. If we want to move selection
+; back or up we can still add constant and resulted index will be smaller then current.
+; IN: a - offset to add to current char index: 1-right, 29-left, 24-up, 6-down
+;     hl - current selection VRAM address
+;     b - current selection X position in Grid
+;     c - current selection Y position in Grid
+MOV_SELECTION:
+	push af				; save a - offset to add to current selection index			;91ca	f5
+	call CLR_SEL_FRAME	; clear Frame for selected char								;91cb	cd 9e 92
+	pop af				; restore a - offset to add to current selection index		;91ce	f1  
+.NEXT:
+	push af				; save a - offset to add to current selection index			;91cf	f5 
+	call SEL_NEXT_CHAR	; select next char and update related variables				;91d0	cd d9 91 
+	pop af				; restore a - offset to add to current selection index		;91d3	f1  
+	dec a				; decrement offset value - check if 0						;91d4	3d
+	jr nz,.NEXT			; no - increment again as many times as needed 				;91d5	20 f8 
+	jr DRAW_SEL_AND_WAIT; draw new selection frame and wait for key					;91d7	18 be 
+
+
+;**********************************************************************************************
+; Increments by 1 code ascii of selected char and update related variables:
+; IN: hl - VRAM address of selection
+;     b - X position in grid of selection
+;     c - Y position in grid of selection
+SEL_NEXT_CHAR:
+	nop					; no operation												;91d9	00
+	ld a,(SEL_CHAR)		; a - code of selected char									;91da	3a 08 92 
+	inc a				; increment code ('A'->'B'; 'B'->'C'; ...)					;91dd	3c 
+	ld (SEL_CHAR),a		; store new selected char									;91de	32 08 92 
+	ld a,b				; a - selection X position in Char Table Grid				;91e1	78 
+	cp 6				; check if it's last char in grid row						;91e2	fe 06 
+	jr z,.NEXT_ROW		; yes - move selection to begin of next row					;91e4	28 07
+; -- it is not last char in row - we can increment in the same row
+	inc b				; increment X position in row								;91e6	04
+	inc hl				; add 5 bytes (20px) to VRAM address						;91e7	23 
+	inc hl				;															;91e8	23 
+	inc hl				;															;91e9	23 
+	inc hl				;															;91ea	23  
+	inc hl				; hl - VRAM address of new selection						;91eb	23  
+	ret					; ----------------- End of Proc --------------------------- ;91ec	c9 
+; -- next right position is outside of grid - move to next line
+.NEXT_ROW:
+	ld b,1				; new X position - 1st char in row							;91ed	06 01 
+	ld a,c				; a - current Y position in grid							;91ef	79 
+	cp 5				; check if it's last row in Char Table Grid					;91f0	fe 05 
+	jr z,.TOP			; yes - move selection to begin of 1st row					;91f2	28 06 
+	ld de,(8*32)+7		; 8 lines and 28px from current VRAM coordinates			;91f4	11 07 01 
+	add hl,de			; hl - VRAM address of new selection						;91f7	19
+	inc c				; increment Y position in grid								;91f8	0c 
+	ret					; ----------------- End of Proc --------------------------- ;91f9	c9 	. 
+.TOP:
+	ld de,(36*32)+25	; 36 lines and 100px offset to top-left char selection		;91fa	11 99 04 
+	or a				; clear Carry flag											;91fd	b7 
+	sbc hl,de			; hl - VRAM address of new selection (1st char - 'A')		;91fe	ed 52 
+	ld c,1				; new Y position - 1st row (1st char already set above)		;9200	0e 01 
+	ld a,'A'			; set new selected char to 'A'								;9202	3e 41 
+	ld (SEL_CHAR),a		; store new value											;9204	32 08 92
+	ret					; ----------------- End of Proc --------------------------- ;9207	c9 	. 
+
+;*****************************************************************************************
+; Current selected char
+SEL_CHAR:
+	defb	0				;9208	00 
+SEL_SLOT_IDX:
+	defb	0				;9209	00 
+
+;*****************************************************************************************
+; Address of Current character slot where selected char will be stored
+SEL_CHAR_SLOT:
+	defw	0				;920a	00 00 
+;*****************************************************************************************
+; Destination VRAM address where char will be drawn for current slot
+SEL_SLOT_VRAM:
+	defw	0				;920c	00 00 
+
+;*****************************************************************************************
+; Buffer for 5 chars Player will chose while picking his Name for High Score entry
+NAME_BUFFER:
+	defb	0,0,0,0,0		;920e	00 00 00 00 00 
+
+;**********************************************************************************************
+; User selected char (or action) from Char Table and confirmed it by presing RETURN
+; IN: hl - VRAM address of selection
+;     b - X position in grid of selection
+;     c - Y position in grid of selection
+CHAR_SELECTED:
+	push bc				; save bc - selection X,Y position in grid					;9213	c5
+	push hl				; save hl - VRAM address of selection						;9214	e5 
+	ld a,(SEL_CHAR)		; a - selected char or action 								;9215	3a 08 92
+; -- actions are displayed like '.'(dot), SPC, DEL, END	but in SEL_CHAR stored as simple char codes
+; check if selected char is one above regular 'Z'
+	cp $5b				; check if '.'(dot) is selected								;9218	fe 5b 
+	jr z,DOT_SELECTED	; yes - store '.' in current char slot and buffer			;921a	28 3a 
+	cp $5c				; check if SPC (space) is selected							;921c	fe 5c
+	jr z,SPACE_SELECTED	; yes - store ' ' in current char slot and buffer			;921e	28 3a 
+	cp $5d				; check if DEL (action) is selected							;9220	fe 5d 
+	jr z,DEL_SELECTED	; yes - delete char in current slot and move back slot ptr	;9222	28 3a 
+	cp $5e				; check if END (action) is selcted							;9224	fe 5e 
+	jr z,END_SELECTED	; yes - store name in High Score Table						;9226	28 68 
+
+; regular char was selected 'A'..'Z'
+STORE_CHAR:
+	ld hl,(SEL_CHAR_SLOT)	; hl - address in Name Buffer for this char 			;9228	2a 0a 92 
+	ld (hl),a			; store selected char 										;922b	77 
+	ld de,(SEL_SLOT_VRAM)	; de - destination VRAM addres to draw new char			;922c	ed 5b 0c 92
 	call DRAW_CHAR_GFX	; print/draw char on Screen									;9230	cd e9 98 
-	ld a,(l9209h)		;9233	3a 09 92 	: . . 
-	cp 004h		;9236	fe 04 	. . 
-	jr nz,l923fh		;9238	20 05 	  . 
-l923ah:
-	pop hl			;923a	e1 	. 
-	pop bc			;923b	c1 	. 
-	jp l919ah		;923c	c3 9a 91 	. . . 
-l923fh:
-	inc a			;923f	3c 	< 
-	ld (l9209h),a		;9240	32 09 92 	2 . . 
-	ld hl,(l920ah)		;9243	2a 0a 92 	* . . 
-	inc hl			;9246	23 	# 
-	ld (l920ah),hl		;9247	22 0a 92 	" . . 
-	ld hl,(l920ch)		;924a	2a 0c 92 	* . . 
-	ld bc,00006h		;924d	01 06 00 	. . . 
-	add hl,bc			;9250	09 	. 
-	ld (l920ch),hl		;9251	22 0c 92 	" . . 
-	jr l923ah		;9254	18 e4 	. . 
-l9256h:
-	ld a,02eh		;9256	3e 2e 	> . 
-	jr l9228h		;9258	18 ce 	. . 
-l925ah:
-	ld a,020h		;925a	3e 20 	>   
-	jr l9228h		;925c	18 ca 	. . 
-l925eh:
-	ld a,020h		;925e	3e 20 	>   
-	ld de,(l920ch)		;9260	ed 5b 0c 92 	. [ . . 
-	push de			;9264	d5 	. 
+	ld a,(SEL_SLOT_IDX)	; a - current index of slot for char (0..4)					;9233	3a 09 92 
+	cp 4				; check if it was last (5th) char							;9236	fe 04 
+	jr nz,NEXT_CHAR_SLOT; no - move destination to next slot						;9238	20 05 
+CHAR_SEL_EXIT:
+	pop hl				; restore hl - VRAM address of selection					;923a	e1  
+	pop bc				; restore bc - selection X,Y position in grid				;923b	c1  
+	jp DELAY_AND_WAIT	; go back to loop waiting for key							;923c	c3 9a 91
+NEXT_CHAR_SLOT:
+	inc a				; increment char slot index									;923f	3c 
+	ld (SEL_SLOT_IDX),a	; store as next slot										;9240	32 09 92
+	ld hl,(SEL_CHAR_SLOT)	; address of char slot in buffer						;9243	2a 0a 92
+	inc hl				; increment address to point next char 						;9246	23 
+	ld (SEL_CHAR_SLOT),hl	; store as current address								;9247	22 0a 92 
+	ld hl,(SEL_SLOT_VRAM)	; VRAM address where char is drawn on screen			;924a	2a 0c 92 
+	ld bc,6				; 6 bytes (24px) beetween slots on screen 					;924d	01 06 00 
+	add hl,bc			; calculate new VRAM address								;9250	09 
+	ld (SEL_SLOT_VRAM),hl	; store as current VRAM address							;9251	22 0c 92 
+	jr CHAR_SEL_EXIT	; exit and go back to loop									;9254	18 e4 
+
+DOT_SELECTED:
+	ld a,'.'			; set '.' (dot) as selected char							;9256	3e 2e
+	jr STORE_CHAR		; store '.' in char slot and buffer							;9258	18 ce 
+
+SPACE_SELECTED:
+	ld a,' '			; set ' ' (space) as selected char							;925a	3e 20 
+	jr STORE_CHAR		; store '.' in char slot and buffer							;925c	18 ca 
+
+DEL_SELECTED:
+	ld a,' '			; space char to draw in current slot						;925e	3e 20 
+	ld de,(SEL_SLOT_VRAM)	; de - destination VRAM address							;9260	ed 5b 0c 92 
+	push de				; save de - VRAM of current slot							;9264	d5 
 	call DRAW_CHAR_GFX	; print/draw char on Screen									;9265	cd e9 98 
-	ld hl,(l920ah)		;9268	2a 0a 92 	* . . 
-	ld (hl),020h		;926b	36 20 	6   
-	pop de			;926d	d1 	. 
-	ld a,(l9209h)		;926e	3a 09 92 	: . . 
-	or a			;9271	b7 	. 
-	jr z,l923ah		;9272	28 c6 	( . 
-	dec a			;9274	3d 	= 
-	ld (l9209h),a		;9275	32 09 92 	2 . . 
-	dec hl			;9278	2b 	+ 
-	ld (hl),020h		;9279	36 20 	6   
-	ld (l920ah),hl		;927b	22 0a 92 	" . . 
-	ex de,hl			;927e	eb 	. 
-	ld de,00006h		;927f	11 06 00 	. . . 
-	or a			;9282	b7 	. 
-	sbc hl,de		;9283	ed 52 	. R 
-	ld (l920ch),hl		;9285	22 0c 92 	" . . 
-	ex de,hl			;9288	eb 	. 
-	ld a,020h		;9289	3e 20 	>   
-	call DRAW_CHAR_GFX	; print/draw char on Screen									;928b	cd e9 98 
-	jr l923ah		;928e	18 aa 	. . 
-l9290h:
-	pop hl			;9290	e1 	. 
-	pop bc			;9291	c1 	. 
-	pop de			;9292	d1 	. 
-	ld hl,l920eh		;9293	21 0e 92 	! . . 
-	ld bc,00005h		;9296	01 05 00 	. . . 
-	ldir		;9299	ed b0 	. . 
-	pop af			;929b	f1 	. 
-	or a			;929c	b7 	. 
-	ret			;929d	c9 	. 
-sub_929eh:
-	push hl			;929e	e5 	. 
-	push bc			;929f	c5 	. 
-	ld de,0001ch		;92a0	11 1c 00 	. . . 
-	call sub_92bah		;92a3	cd ba 92 	. . . 
-	ld a,007h		;92a6	3e 07 	> . 
-	ld bc,00004h		;92a8	01 04 00 	. . . 
-l92abh:
-	ld (hl),000h		;92ab	36 00 	6 . 
-	add hl,bc			;92ad	09 	. 
-	ld (hl),000h		;92ae	36 00 	6 . 
-	add hl,de			;92b0	19 	. 
-	dec a			;92b1	3d 	= 
-	jr nz,l92abh		;92b2	20 f7 	  . 
-	call sub_92bah		;92b4	cd ba 92 	. . . 
-	pop bc			;92b7	c1 	. 
-	pop hl			;92b8	e1 	. 
-	ret			;92b9	c9 	. 
-sub_92bah:
-	ld (hl),000h		;92ba	36 00 	6 . 
-	inc hl			;92bc	23 	# 
-	ld (hl),000h		;92bd	36 00 	6 . 
-	inc hl			;92bf	23 	# 
-	ld (hl),000h		;92c0	36 00 	6 . 
-	inc hl			;92c2	23 	# 
-	ld (hl),000h		;92c3	36 00 	6 . 
-	inc hl			;92c5	23 	# 
-	ld (hl),000h		;92c6	36 00 	6 . 
-	add hl,de			;92c8	19 	. 
-	ret			;92c9	c9 	. 
-sub_92cah:
-	push hl			;92ca	e5 	. 
-	push bc			;92cb	c5 	. 
-	ld de,0001ch		;92cc	11 1c 00 	. . . 
-	call sub_92e6h		;92cf	cd e6 92 	. . . 
-	ld bc,00004h		;92d2	01 04 00 	. . . 
-	ld a,007h		;92d5	3e 07 	> . 
-l92d7h:
-	ld (hl),010h		;92d7	36 10 	6 . 
-	add hl,bc			;92d9	09 	. 
-	ld (hl),010h		;92da	36 10 	6 . 
-	add hl,de			;92dc	19 	. 
-	dec a			;92dd	3d 	= 
-	jr nz,l92d7h		;92de	20 f7 	  . 
-	call sub_92e6h		;92e0	cd e6 92 	. . . 
-	pop bc			;92e3	c1 	. 
-	pop hl			;92e4	e1 	. 
-	ret			;92e5	c9 	. 
-sub_92e6h:
-	ld (hl),015h		;92e6	36 15 	6 . 
-	inc hl			;92e8	23 	# 
-	ld (hl),055h		;92e9	36 55 	6 U 
-	inc hl			;92eb	23 	# 
-	ld (hl),055h		;92ec	36 55 	6 U 
-	inc hl			;92ee	23 	# 
-	ld (hl),055h		;92ef	36 55 	6 U 
-	inc hl			;92f1	23 	# 
-	ld (hl),050h		;92f2	36 50 	6 P 
-	add hl,de			;92f4	19 	. 
-	ret			;92f5	c9 	. 
-sub_92f6h:
-	push bc			;92f6	c5 	. 
-	push hl			;92f7	e5 	. 
-	push hl			;92f8	e5 	. 
-	pop de			;92f9	d1 	. 
-	inc de			;92fa	13 	. 
-	inc de			;92fb	13 	. 
-	inc de			;92fc	13 	. 
-	inc de			;92fd	13 	. 
-	inc de			;92fe	13 	. 
-	ld bc,00005h		;92ff	01 05 00 	. . . 
-	ldir		;9302	ed b0 	. . 
-	pop hl			;9304	e1 	. 
-	dec hl			;9305	2b 	+ 
-	dec hl			;9306	2b 	+ 
-	dec hl			;9307	2b 	+ 
-	dec hl			;9308	2b 	+ 
-	dec hl			;9309	2b 	+ 
-	pop bc			;930a	c1 	. 
-	djnz sub_92f6h		;930b	10 e9 	. . 
-	ret			;930d	c9 	. 
+	ld hl,(SEL_CHAR_SLOT)	; hl - address of current char slot						;9268	2a 0a 92
+	ld (hl),' '			; clear character in slot									;926b	36 20 
+	pop de				; restore de - VRAM of current slot							;926d	d1 
+	ld a,(SEL_SLOT_IDX)	; current slot index										;926e	3a 09 92 
+	or a				; check if 0 (1st char slot)								;9271	b7 
+	jr z,CHAR_SEL_EXIT	; yes - exit and go back to loop							;9272	28 c6 
+; -- it was not 1stslot we can move selection to previous one
+	dec a				; decrement current slot index								;9274	3d 
+	ld (SEL_SLOT_IDX),a	; store as selected slot index								;9275	32 09 92 
+	dec hl				; update new address of current slot 						;9278	2b
+	ld (hl),' '			; clear character in slot									;9279	36 20 
+	ld (SEL_CHAR_SLOT),hl	; store address of current slot							;927b	22 0a 92 
+	ex de,hl			; hl - VRAM of current slot									;927e	eb 
+	ld de,6				; 6 bytes (24px) beetween slots on screen					;927f	11 06 00 
+	or a				; clear Carry flag											;9282	b7 
+	sbc hl,de			; substract 6 bytes from previous VRAM address				;9283	ed 52 
+	ld (SEL_SLOT_VRAM),hl	; store updated VRAM of current slot					;9285	22 0c 92 
+	ex de,hl			; de - deestination VRAM to draw char						;9288	eb 
+	ld a,' '			; space char to draw										;9289	3e 20 
+	call DRAW_CHAR_GFX	; draw char on Screen										;928b	cd e9 98 
+	jr CHAR_SEL_EXIT	; exit and go back to loop									;928e	18 aa 
+
+END_SELECTED:
+	pop hl				; take out from Stack Pointer (no longer needed) value		;9290	e1 
+	pop bc				; take out from Stack Pointer (no longer needed) value		;9291	c1 
+	pop de				; de - address of HS entry to place Player name				;9292	d1 
+	ld hl,NAME_BUFFER	; hl - address of buffer with player name					;9293	21 0e 92 
+	ld bc,5				; 5 chars of name (space trailed)							;9296	01 05 00 
+	ldir				; copy name to High Score Table								;9299	ed b0 
+	pop af				; restore a - index in HighScore Table						;929b	f1 
+	or a				; set Flags for value										;929c	b7 
+	ret					; --------------- End of Proc (index) ---------------------	;929d	c9 
+
+;***************************************************************************************
+; Draw Rectangle/Frame for selected char using background color (Clear)
+CLR_SEL_FRAME:
+	push hl				; save hl - VRAM address of current selection				;929e	e5
+	push bc				; save bc - current selection XY position in Table			;929f	c5 
+	ld de,28			; 28 bytes per line (4 handled in draw routine)				;92a0	11 1c 00 
+	call CLR_FRAME_HLINE; clear top line of rectangle								;92a3	cd ba 92
+	ld a,7				; 7 lines/px height											;92a6	3e 07 
+	ld bc,4				; 4 bytes (16px) width										;92a8	01 04 00
+.NEXT_LINE:
+	ld (hl),0			; clear left edge [ ][ ][ ][ ]								;92ab	36 00
+	add hl,bc			; hl - address of right edge								;92ad	09 
+	ld (hl),0			; clear right edge [ ][ ][ ][ ]								;92ae	36 00 
+	add hl,de			; move destination to next line								;92b0	19 
+	dec a				; decrement line counter - check if 0						;92b1	3d 
+	jr nz,.NEXT_LINE	; no - clear all 7 lines									;92b2	20 f7 
+	call CLR_FRAME_HLINE; clear bottom line of rectangle							;92b4	cd ba 92
+	pop bc				; restore bc - current selection XY position in Table		;92b7	c1
+	pop hl				; restore hl - VRAM address of current selection			;92b8	e1 
+	ret					; ------------------- End of Proc ------------------------- ;92b9	c9 
+
+;***************************************************************************************
+; Clear Horizontal Frame Line - 24px 
+CLR_FRAME_HLINE:
+	ld (hl),000h		; draw pixels [ ][ ][ ][ ]									;92ba	36 00
+	inc hl				; next address on Screen									;92bc	23 
+	ld (hl),000h		; draw pixels [ ][ ][ ][ ]									;92bd	36 00 
+	inc hl				; next address on Screen									;92bf	23 
+	ld (hl),000h		; draw pixels [ ][ ][ ][ ]									;92c0	36 00 
+	inc hl				; next address on Screen									;92c2	23 
+	ld (hl),000h		; draw pixels [ ][ ][ ][ ]									;92c3	36 00 
+	inc hl				; next address on Screen									;92c5	23 
+	ld (hl),000h		; draw pixels [ ][ ][ ][ ]									;92c6	36 00 
+	add hl,de			; add 28 - set address to next line							;92c8	19  
+	ret					; ------------------- End of Proc ------------------------- ;92c9	c9 
+
+;**************************************************************************************
+; Draw Rectangle/Frame for char Player will pick as his name
+; IN: hl - destination address in Offscreen Buffer
+DRAW_CHAR_FRAME:
+	push hl				; save hl - address in Offscreeen Buffer					;92ca	e5 
+	push bc				; save bc - number of bytes per Char Frame 					;92cb	c5
+	ld de,28			; 28 bytes per line (4 handled by draw routine)				;92cc	11 1c 00 
+	call DRAW_FRAME_HLINE	; draw top line of rectangle							;92cf	cd e6 92 
+	ld bc,4				; 4 bytes (16px) width										;92d2	01 04 00 
+	ld a,7				; 7 lines/px height											;92d5	3e 07 
+.NEXT_LINE:
+	ld (hl),$10			; draw left edge [ ][X][ ][ ]								;92d7	36 10 
+	add hl,bc			; hl - address of right edge								;92d9	09 
+	ld (hl),$10			; draw right edge [ ][X][ ][ ]								;92da	36 10 
+	add hl,de			; move destination to next line								;92dc	19 
+	dec a				; decrement line counter - check if 0						;92dd	3d 
+	jr nz,.NEXT_LINE	; no - dlaww all 7 lines 									;92de	20 f7 
+	call DRAW_FRAME_HLINE	; draw bottom line of rectangle							;92e0	cd e6 92 
+	pop bc				; restore bc - number of bytes per Char Frame					;92e3	c1 
+	pop hl				; restore hl - address in Offscreen Buffer					;92e4	e1 
+	ret					; ------------------ End of Proc --------------------------	;92e5	c9 
+
+
+;***************************************************************************************
+; Draw Horizontal Frame Line - 24px 
+DRAW_FRAME_HLINE:
+	ld (hl),$15			; draw pixels [ ][X][X][X]									;92e6	36 15 
+	inc hl				; next address in Buffer									;92e8	23 
+	ld (hl),$55			; draw pixels [X][X][X][X]									;92e9	36 55
+	inc hl				; next address in Buffer									;92eb	23 
+	ld (hl),055h		; draw pixels [X][X][X][X]									;92ec	36 55
+	inc hl				; next address in Buffer									;92ee	23 
+	ld (hl),055h		; draw pixels [X][X][X][X]									;92ef	36 55
+	inc hl				; next address in Buffer									;92f1	23 
+	ld (hl),050h		; draw pixels [X][X][ ][ ]									;92f2	36 50 
+	add hl,de			; add 28 - set address to next line							;92f4	19 
+	ret					; -------------------- End of Proc ------------------------ ;92f5	c9 
+
+;****************************************************************************************
+; Move High Score Entries
+; Used to shift values and names in Hight Score Table in order to make place for new Player entry.
+; IN: hl - address of 1st entry to move down
+;     b - number of entries to move
+MOVE_HS_ENTRIES:
+	push bc				; save b - entries counter									;92f6	c5
+	push hl				; save hl - entry to move down on list						;92f7	e5
+	push hl				; move hl to de												;92f8	e5 
+	pop de				; de - entry addres 										;92f9	d1 
+	inc de				; increment addres by 5 bytes in total						;92fa	13 
+	inc de				;															;92fb	13 
+	inc de				;															;92fc	13 
+	inc de				;															;92fd	13 
+	inc de				; de - destination - next entry in table					;92fe	13 
+	ld bc,5				; 5 bytes to copy (1 entry)									;92ff	01 05 00 
+	ldir				; copy entry to next position								;9302	ed b0 
+	pop hl				; restore hl - adres of entry just copied					;9304	e1
+	dec hl				; decrement address by 5 bytes in total 					;9305	2b
+	dec hl				;															;9306	2b 
+	dec hl				;															;9307	2b 
+	dec hl				;															;9308	2b 
+	dec hl				; hl - address of previous entry							;9309	2b 
+	pop bc				; restor b - etres to move									;930a	c1 
+	djnz MOVE_HS_ENTRIES; decrement counter - check if all moved 					;930b	10 e9
+	ret					; ------------------- End of Proc ------------------------- ;930d	c9 
+
 
 ;****************************************************************************************
 ; Make transition to Screen already drawn in Offscreen Buffer
@@ -3588,6 +3754,8 @@ DELAY_DE:
 ; Print Text on Screen in Graphics Mode 1. Supports CR/LF char (13)
 ; IN: hl - null terminated text
 ;     de - destination VRAM or VBUF address
+; OUT: hl - address right after printed text (points to text terminator)
+;     de - destination address in next line after printed text
 PRINT_TEXT_GFX:
 	push de					; save de - line start VRAM or VBUF address				;9423	d5 
 .NEXT_CHAR:
@@ -3740,13 +3908,15 @@ VAR_HS_VALUE_9:
 
 
 l9712h:
-	ld hl,0781ah		;9712	21 1a 78 	! . x 
-	ld a,009h		;9715	3e 09 	> . 
-	ld (hl),a			;9717	77 	w 
-	inc hl			;9718	23 	# 
-	ld (hl),a			;9719	77 	w 
-	inc hl			;971a	23 	# 
-	ld (hl),a			;971b	77 	w 
+; -- reset Fuel Amount to startup value 999
+	ld hl,FUEL_DIGITS	; Fuel Amount Left Digits									;9712	21 1a 78 
+	ld a,9				; initial value 9 											;9715	3e 09 
+	ld (hl),a			; store initial value										;9717	77
+	inc hl				; next digit												;9718	23
+	ld (hl),a			; store initial value										;9719	77 
+	inc hl				; next digit												;971a	23 
+	ld (hl),a			; store initial value - 999 total							;971b	77
+
 	ld a,(07833h)		;971c	3a 33 78 	: 3 x 
 	or a			;971f	b7 	. 
 	jr z,l9728h		;9720	28 06 	( . 
@@ -3780,9 +3950,9 @@ l9747h:
 	djnz l9747h		;974a	10 fb 	. . 
 l974ch:
 	ld hl,0782fh		;974c	21 2f 78 	! / x 
-	ld a,(0781dh)		;974f	3a 1d 78 	: . x 
+	ld a,(PRIS_RESCUED)	; Number of Prisoners Rescued so far						;974f	3a 1d 78 
 	add a,(hl)			;9752	86 	. 
-	ld (0781dh),a		;9753	32 1d 78 	2 . x 
+	ld (PRIS_RESCUED),a	; store new value 											;9753	32 1d 78 
 	ld de,07830h		;9756	11 30 78 	. 0 x 
 	ld bc,00004h		;9759	01 04 00 	. . . 
 	ld (hl),000h		;975c	36 00 	6 . 
@@ -3818,34 +3988,40 @@ l9786h:
 	ld (07909h),bc		;978b	ed 43 09 79 	. C . y 
 	ld a,b			;978f	78 	x 
 	or c			;9790	b1 	. 
-	jr nz,l97fah		;9791	20 67 	  g 
+	jr nz,EXIT_CODE_0		;9791	20 67 	  g 
 	ld bc,00bb8h		;9793	01 b8 0b 	. . . 
 	ld (07909h),bc		;9796	ed 43 09 79 	. C . y 
-	ld hl,07819h		;979a	21 19 78 	! . x 
-	ld a,00ah		;979d	3e 0a 	> . 
-	inc (hl)			;979f	34 	4 
-	cp (hl)			;97a0	be 	. 
-	jr nz,l97fah		;97a1	20 57 	  W 
-	ld (hl),000h		;97a3	36 00 	6 . 
-	dec hl			;97a5	2b 	+ 
-	ld a,006h		;97a6	3e 06 	> . 
-	inc (hl)			;97a8	34 	4 
-	cp (hl)			;97a9	be 	. 
-	jr nz,l97fah		;97aa	20 4e 	  N 
-	ld (hl),000h		;97ac	36 00 	6 . 
-	dec hl			;97ae	2b 	+ 
-	inc (hl)			;97af	34 	4 
-	ld a,006h		;97b0	3e 06 	> . 
-	cp (hl)			;97b2	be 	. 
-	jr nz,l97fah		;97b3	20 45 	  E 
-	jr l97f6h		;97b5	18 3f 	. ? 
+;--
+	ld hl,MISSION_TIME+2; hl - second digit of Mission Time minutes 				;979a	21 19 78 
+	ld a,10				; a - 10 minutes to compare with							;979d	3e 0a 
+	inc (hl)			; add 1 minute 												;979f	34 
+	cp (hl)				; is value is now 10?										;97a0	be 
+	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97a1	20 57  
+; -- reset last digit and add 1 to tens of minutes
+	ld (hl),0			; reset last digit to 0										;97a3	36 00 
+	dec hl				; hl - 1st digit of MIssion Time minutes (tens)				;97a5	2b 
+	ld a,6				; a - 60 minutes to compare with 							;97a6	3e 06
+	inc (hl)			; add 10 minutes 											;97a8	34
+	cp (hl)				; is value is now 60? 										;97a9	be 
+	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97aa	20 4e 
+; -- reset 1st digit of minutes and add 1 to hours
+	ld (hl),0			; reset minutes to 00										;97ac	36 00 
+	dec hl				; hl - digit of Mission Time hours							;97ae	2b 
+	inc (hl)			; add 1 hour												;97af	34 
+; -- check if it's now 6:00 AM - end of game	
+	ld a,6				; a - 6 to compare 											;97b0	3e 06 
+	cp (hl)				; is it 6:00 AM? 											;97b2	be 
+	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97b3	20 45 
+; -- it's 6:00 AM - time is over
+	jr EXIT_CODE_1			; return with Exit code 1 --------------------------------- ;97b5	18 3f 
+
 l97b7h:
 	ld bc,(0790bh)		;97b7	ed 4b 0b 79 	. K . y 
 	dec bc			;97bb	0b 	. 
 	ld (0790bh),bc		;97bc	ed 43 0b 79 	. C . y 
 	ld a,b			;97c0	78 	x 
 	or c			;97c1	b1 	. 
-	jr nz,l97fah		;97c2	20 36 	  6 
+	jr nz,EXIT_CODE_0		;97c2	20 36 	  6 
 	ld hl,001a3h		;97c4	21 a3 01 	! . . 
 	ld bc,00014h		;97c7	01 14 00 	. . . 
 	ld a,(0782fh)		;97ca	3a 2f 78 	: / x 
@@ -3863,100 +4039,135 @@ l97dah:
 	ld a,0ffh		;97e0	3e ff 	> . 
 	dec (hl)			;97e2	35 	5 
 	cp (hl)			;97e3	be 	. 
-	jr nz,l97fah		;97e4	20 14 	  . 
+	jr nz,EXIT_CODE_0		;97e4	20 14 	  . 
 	ld (hl),009h		;97e6	36 09 	6 . 
 	dec hl			;97e8	2b 	+ 
 	dec (hl)			;97e9	35 	5 
 	cp (hl)			;97ea	be 	. 
-	jr nz,l97fah		;97eb	20 0d 	  . 
+	jr nz,EXIT_CODE_0		;97eb	20 0d 	  . 
 	ld (hl),009h		;97ed	36 09 	6 . 
 	dec hl			;97ef	2b 	+ 
 	dec (hl)			;97f0	35 	5 
 	cp (hl)			;97f1	be 	. 
-	jr nz,l97fah		;97f2	20 06 	  . 
+	jr nz,EXIT_CODE_0		;97f2	20 06 	  . 
 	ld (hl),009h		;97f4	36 09 	6 . 
-l97f6h:
-	ld a,001h		;97f6	3e 01 	> . 
-	or a			;97f8	b7 	. 
-	ret			;97f9	c9 	. 
-l97fah:
-	xor a			;97fa	af 	. 
-	ret			;97fb	c9 	. 
-l97fch:
-	ld hl,0b638h		;97fc	21 38 b6 	! 8 . 
-	ld de,0b639h		;97ff	11 39 b6 	. 9 . 
-	ld bc,0001fh		;9802	01 1f 00 	. . . 
-	ld (hl),020h		;9805	36 20 	6   
-	ldir		;9807	ed b0 	. . 
-	ld a,021h		;9809	3e 21 	> ! 
-	ld (0b658h),a		;980b	32 58 b6 	2 X . 
-	ld hl,0b638h		;980e	21 38 b6 	! 8 . 
-	ld a,(07803h)		;9811	3a 03 78 	: . x 
-	call sub_9874h		;9814	cd 74 98 	. t . 
-	inc hl			;9817	23 	# 
-	ld a,(07807h)		;9818	3a 07 78 	: . x 
-	call sub_9874h		;981b	cd 74 98 	. t . 
-	inc hl			;981e	23 	# 
-	ld a,(0780bh)		;981f	3a 0b 78 	: . x 
-	call sub_9874h		;9822	cd 74 98 	. t . 
-	inc hl			;9825	23 	# 
-	ld a,(0780fh)		;9826	3a 0f 78 	: . x 
-	call sub_9874h		;9829	cd 74 98 	. t . 
-	inc hl			;982c	23 	# 
-	inc hl			;982d	23 	# 
-	ld de,0781ah		;982e	11 1a 78 	. . x 
-	ex de,hl			;9831	eb 	. 
-	ld bc,00003h		;9832	01 03 00 	. . . 
-	ldir		;9835	ed b0 	. . 
-	inc de			;9837	13 	. 
-	inc de			;9838	13 	. 
-	ld hl,07812h		;9839	21 12 78 	! . x 
-	ld bc,00005h		;983c	01 05 00 	. . . 
-	ldir		;983f	ed b0 	. . 
-	inc de			;9841	13 	. 
-	inc de			;9842	13 	. 
-	ld a,(07811h)		;9843	3a 11 78 	: . x 
-	ld (de),a			;9846	12 	. 
-	inc de			;9847	13 	. 
-	inc de			;9848	13 	. 
-	inc de			;9849	13 	. 
-	ld hl,07817h		;984a	21 17 78 	! . x 
-	ld bc,00001h		;984d	01 01 00 	. . . 
-	ldir		;9850	ed b0 	. . 
-	inc bc			;9852	03 	. 
-	inc bc			;9853	03 	. 
-	inc de			;9854	13 	. 
-	ldir		;9855	ed b0 	. . 
-	ld a,014h		;9857	3e 14 	> . 
-	ld (0aacfh),a		;9859	32 cf aa 	2 . . 
-	ld (0ab27h),a		;985c	32 27 ab 	2 ' . 
-	ld hl,0b638h		;985f	21 38 b6 	! 8 . 
-	ld de,0aa86h		;9862	11 86 aa 	. . . 
-l9865h:
-	ld a,(hl)			;9865	7e 	~ 
-	cp 021h		;9866	fe 21 	. ! 
-	ret z			;9868	c8 	. 
-	push hl			;9869	e5 	. 
-	cp 020h		;986a	fe 20 	.   
-	call nz,DRAW_DIGIT_GFX		;986c	c4 89 98 	. . . 
-	pop hl			;986f	e1 	. 
-	inc de			;9870	13 	. 
-	inc hl			;9871	23 	# 
-	jr l9865h		;9872	18 f1 	. . 
-sub_9874h:
-	cp 00ah		;9874	fe 0a 	. . 
-	jp m,l9885h		;9876	fa 85 98 	. . . 
-	ld (hl),001h		;9879	36 01 	6 . 
-	sub 00ah		;987b	d6 0a 	. . 
-	cp 00ah		;987d	fe 0a 	. . 
-	jp m,l9885h		;987f	fa 85 98 	. . . 
-	inc (hl)			;9882	34 	4 
-	sub 00ah		;9883	d6 0a 	. . 
-l9885h:
-	inc hl			;9885	23 	# 
-	ld (hl),a			;9886	77 	w 
-	inc hl			;9887	23 	# 
-	ret			;9888	c9 	. 
+EXIT_CODE_1:
+	ld a,1				; set return value 1 in a 									;97f6	3e 01
+	or a				; set CPU flags												;97f8	b7 
+	ret					; -------------------- End of Proc (1) -------------------- ;97f9	c9 
+EXIT_CODE_0:
+	xor a				; set return value 0 in a and CPU flags						;97fa	af 
+	ret					; -------------------- End of Proc (0) -------------------- ;97fb	c9 
+
+
+;****************************************************************************************************
+; Draw into Offscreen Buffer Status Bar 
+; Status Bar is displayed at the Top of Screen and contains data:
+;     20 20 20 20  999  00000 4 4:00
+; - (20) Prisoners left in Camp 1
+; - (20) Prisoners left in Camp 2
+; - (20) Prisoners left in Camp 3
+; - (20) Prisoners left in Camp 4
+; - (999) Fuel Amount Left
+; - (00000) Player Score
+; - (4) Helicopters Left
+; - (4:00) Mission Clock
+PRINT_STATBAR_BUF:
+; -- fill Status Bar Buffer with ' ' (space) char
+	ld hl,VSTATBUF		; src - Status Bar Buffer									;97fc	21 38 b6
+	ld de,VSTATBUF+1	; dst - address + 1											;97ff	11 39 b6
+	ld bc,32-1			; cnt - 32 bytes to fill									;9802	01 1f 00 
+	ld (hl),' '			; ' ' (space) char to fill buffer							;9805	36 20 
+	ldir				; fill Buffer with spaces									;9807	ed b0 
+; -- set '!' as terminate char at the end of Buffer
+	ld a,'!'			; string terminator											;9809	3e 21 
+	ld (VSTATBUF+32),a	; store terminate char at the end of Buffer					;980b	32 58 b6 
+; -- print into Buffer number of Prisoners Left in each of 4 Camps
+	ld hl,VSTATBUF		; destination address in Status Bar Buffer					;980e	21 38 b6 
+	ld a,(PRIS_CAMP_1)	; a - Number of Prisoners Left in Camp 1					;9811	3a 03 78 
+	call NUM_2_DIGITS	; convert number into 2 digits and store in buffer 			;9814	cd 74 98 
+	inc hl				; skip 1 space												;9817	23 
+	ld a,(PRIS_CAMP_2)	; a - Number of Prisoners Left in Camp 2					;9818	3a 07 78 
+	call NUM_2_DIGITS	; convert number into 2 digits and store in buffer 			;981b	cd 74 98 
+	inc hl				; skip 1 space												;981e	23 
+	ld a,(PRIS_CAMP_3)	; a - Number of Prisoners Left in Camp 3					;981f	3a 0b 78 
+	call NUM_2_DIGITS	; convert number into 2 digits and store in buffer 			;9822	cd 74 98 
+	inc hl				; skip 1 space												;9825	23
+	ld a,(PRIS_CAMP_4)	; a - Number of Prisoners Left in Camp 4					;9826	3a 0f 78 
+	call NUM_2_DIGITS	; convert number into 2 digits and store in buffer 			;9829	cd 74 98
+	inc hl				; skip 1 space												;982c	23 
+	inc hl				; skip 1 space												;982d	23 
+; -- print into buffer Fuel Amount Lef
+	ld de,FUEL_DIGITS	; Fuel Amount Left digits									;982e	11 1a 78
+	ex de,hl			; hl (src) - digits, de (dst) -   ;9831	eb 	. 
+	ld bc,3				; 3 digits of Fuel value									;9832	01 03 00 
+	ldir				; copy to Status Bar Buffer									;9835	ed b0 
+	inc de				; skip 1 space												;9837	13  
+	inc de				; skip 1 space												;9838	13 
+; -- print into Buffer Player Score digits
+	ld hl,SCORE_DIGITS	; Digits of Player current Score							;9839	21 12 78 
+	ld bc,5				; 5 digits of Score Value									;983c	01 05 00 
+	ldir				; copy to Status Bar Buffer									;983f	ed b0 
+	inc de				; skip 1 space												;9841	13 
+	inc de				; skip 1 space												;9842	13 
+; -- print into buffer number Helicopters Left
+	ld a,(HELICOPTERS)	; number of Helicopters left 								;9843	3a 11 78
+	ld (de),a			; store into Status Bar Buffer								;9846	12 
+	inc de				; skip 1 space												;9847	13 
+	inc de				; skip 1 space												;9848	13 
+	inc de				; skip 1 space												;9849	13 
+; -- print into buffer Mission Time - hour first ....
+	ld hl,MISSION_TIME	; Digits of Mission current Time							;984a	21 17 78
+	ld bc,1				; 1 byte - only hours digit									;984d	01 01 00 
+	ldir				; copy to Status Bar Buffer									;9850	ed b0 
+; -- ... and minutes
+	inc bc				; set bc to 1 (after ldir bc = 0)							;9852	03 
+	inc bc				; bc - 2 digits of minutes 									;9853	03 
+	inc de				; skip 1 space												;9854	13
+	ldir				; copy to Status Bar Buffer									;9855	ed b0 
+; -- print directly to Offscreen Buffer char ':' drawing pixels [-][X][X][-]
+	ld a,%00010100		; '-' char as pixels										;9857	3e 14
+	ld (VSCRBUF+(1*44)+35),a	; store into Buffer at (140,1)px [WIDE SCREEN]		;9859	32 cf aa
+	ld (VSCRBUF+(3*44)+35),a	; store into Buffer at (140,3)px [WIDE SCREEN]		;985c	32 27 ab
+
+; -- transform Status Bar values to chars and print copy to Offscreen Buffer
+	ld hl,VSTATBUF		; To Screen Status Bar Buffer 								;985f	21 38 b6 
+	ld de,VSCRBUF+6		; destination coord (24,0)px 								;9862	11 86 aa 
+.NEXT_DIGIT:
+	ld a,(hl)			; a - value (digit) from Status Bar Buffer					;9865	7e
+	cp '!'				; check if it is data derminate char?						;9866	fe 21 
+	ret z				; yes ----------------- End of Proc ----------------------- ;9868	c8 
+	push hl				; save hl - source address in Status Bar buffer				;9869	e5
+	cp ' '				; is it ' ' (space) 										;986a	fe 20 
+	call nz,DRAW_DIGIT_GFX	; no - draw digit into Offscreen Buffer					;986c	c4 89 98 
+	pop hl				; restore hl - address in Status Bar buffer					;986f	e1 
+	inc de				; next destination address									;9870	13 
+	inc hl				; next digit or space in Status Bar buffer					;9871	23
+	jr .NEXT_DIGIT		; draw next digit											;9872	18 f1 
+
+
+;***********************************************************************************************
+; Convert Number to its Digits
+; IN: a - number value in range (0..29) 
+;     hl - destination addres where digits are stored
+; OUT: hl - address incrased by 2 (right after stored digits)
+NUM_2_DIGITS:
+	cp 10				; is value less than 10										;9874	fe 0a 
+	jp m,.STORE_EXIT	; yes - store value as second digit and exit				;9876	fa 85 98
+; -- value to convert >= 10 - 2 digits are needed
+	ld (hl),1			; store 1st digit as '1' (tens)								;9879	36 01
+	sub 10				; substract 10 												;987b	d6 0a 
+	cp 10				; is now value < 10 (was in range 10..19) ?					;987d	fe 0a 
+	jp m,.STORE_EXIT	; yes - store value as second digit and exit				;987f	fa 85 98 
+; -- value was >= 20 - set 1st digit to '2' 
+	inc (hl)			; set 1st digit to '2'										;9882	34 
+	sub 10				; a in range (0..9)											;9883	d6 0a 
+; -- store rest as second digit and exit
+.STORE_EXIT:
+	inc hl				; shift destination to 2nd digit address					;9885	23
+	ld (hl),a			; store value left in a										;9886	77
+	inc hl				; next address in Buffer									;9887	23 
+	ret					; ---------------------- End of Proc ---------------------- ;9888	c9 
 
 
 
@@ -6500,23 +6711,29 @@ la993h:
 	ld b,d			;a9c3	42 	B 
 	nop			;a9c4	00 	. 
 
-la9c5h:
+;***********************************************************************************************
+;
+;    G A M E P L A Y   V A R I A B L E S  S T A R T U P   V A L U E S
+;
+;***********************************************************************************************
+; Values to fill variables $7801 .. $7811
+TAB_DEF_VARS:
 	nop			;a9c5	00 	. 
 	inc e			;a9c6	1c 	. 
-	inc d			;a9c7	14 	. 
+	defb 20			; $7803 - Number of Prisoners in Camp 1						;a9c7	14 
 	nop			;a9c8	00 	. 
 	nop			;a9c9	00 	. 
 	ld d,e			;a9ca	53 	S 
 la9cbh:
-	inc d			;a9cb	14 	. 
+	defb 20			; $7807 - Number of Prisoners in Camp 2						;a9cb	14 	. 
 	nop			;a9cc	00 	. 
 	nop			;a9cd	00 	. 
 	adc a,d			;a9ce	8a 	. 
-	inc d			;a9cf	14 	. 
+	defb 20			; $780b - Number of Prisoners in Camp 3						;a9cf	14 	. 
 	nop			;a9d0	00 	. 
 	nop			;a9d1	00 	. 
 	pop bc			;a9d2	c1 	. 
-	inc d			;a9d3	14 	. 
+	defb 20			; $780f - Number of Prisoners in Camp 4						;a9d3	14 	. 
 	nop			;a9d4	00 	. 
 la9d5h:
 	jr la9d7h		;a9d5	18 00 	. . 
