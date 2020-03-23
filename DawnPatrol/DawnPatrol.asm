@@ -2977,37 +2977,39 @@ l9066h:
 	push af					; save af - index in HS Table							;90a5	f5 
 	call PRINT_HIGH_SCORES	; show High Score Table with Red Rect animation			;90a6	cd ff 8f 
 	pop af					; restore af - index in HS Table						;90a9	f1
+; -- highlight player's score - calculate screen position
+	ld hl,VSCRBUF+(32*2)+5	; 1st HS entry screen position (5,8)px (Buffer)			;90aa	21 c5 aa
+	ld de,6*32				; 6 lines gap beetween Score entries on screen			;90ad	11 c0 00 
 
-	ld hl,0aac5h		;90aa	21 c5 aa 	! . . 
-	ld de,000c0h		;90ad	11 c0 00 	. . . 
-l90b0h:
-	dec a			;90b0	3d 	= 
-	jr z,l90b6h		;90b1	28 03 	( . 
-	add hl,de			;90b3	19 	. 
-	jr l90b0h		;90b4	18 fa 	. . 
-l90b6h:
-	ld de,0001fh		;90b6	11 1f 00 	. . . 
-	ld (hl),000h		;90b9	36 00 	6 . 
-	inc hl			;90bb	23 	# 
-	ld (hl),050h		;90bc	36 50 	6 P 
-	add hl,de			;90be	19 	. 
-	ld (hl),000h		;90bf	36 00 	6 . 
-	inc hl			;90c1	23 	# 
-	ld (hl),054h		;90c2	36 54 	6 T 
-	add hl,de			;90c4	19 	. 
-	ld (hl),055h		;90c5	36 55 	6 U 
-	inc hl			;90c7	23 	# 
-	ld (hl),055h		;90c8	36 55 	6 U 
-	add hl,de			;90ca	19 	. 
-	ld (hl),000h		;90cb	36 00 	6 . 
-	inc hl			;90cd	23 	# 
-	ld (hl),054h		;90ce	36 54 	6 T 
-	add hl,de			;90d0	19 	. 
-	ld (hl),000h		;90d1	36 00 	6 . 
-	inc hl			;90d3	23 	# 
-	ld (hl),050h		;90d4	36 50 	6 P 
-	call SHOW_SCR_WAIT		;90d6	cd 0e 93 	. . . 
-	jp GAME_START_SCREEN		;90d9	c3 cb 8f 	. . . 
+.ADD_6_LINES:
+	dec a					; decrement HS entry index								;90b0	3d 
+	jr z,.DRAW_ARROW		; check if 0 - address calculated 						;90b1	28 03 
+	add hl,de				; add 6 lines 											;90b3	19 
+	jr .ADD_6_LINES			; continue adding										;90b4	18 fa 
+.DRAW_ARROW:
+; -- highlight Player's entry bo drawing Arrow at left side
+	ld de,31				; 31 bytes per screen line (1 byte handled inproc)		;90b6	11 1f 00 
+	ld (hl),$00				; draw 4 background piksels [ ][ ][ ][ ]				;90b9	36 00 
+	inc hl					; next VRAM address										;90bb	23 
+	ld (hl),$50				; draw 4 pixels [X][X][ ][ ]							;90bc	36 50 
+	add hl,de				; next line on screen									;90be	19 
+	ld (hl),$00				; draw 4 background piksels [ ][ ][ ][ ]				;90bf	36 00
+	inc hl					; next VRAM address										;90c1	23 
+	ld (hl),$54				; draw 4 pixels [X][X][X][ ]							;90c2	36 54 
+	add hl,de				; next line on screen									;90c4	19 
+	ld (hl),$55				; draw 4 pixels [X][X][X][X]							;90c5	36 55 
+	inc hl					; next VRAM address										;90c7	23 
+	ld (hl),$55				; draw 4 pixels [X][X][X][X]							;90c8	36 55 
+	add hl,de				; next line on screen									;90ca	19 
+	ld (hl),$00				; draw 4 pixels [ ][ ][ ][ ]							;90cb	36 00 
+	inc hl					; next VRAM address										;90cd	23 
+	ld (hl),$54				; draw 4 pixels [X][X][X][ ]							;90ce	36 54 
+	add hl,de				; next line on screen									;90d0	19 
+	ld (hl),$00				; draw 4 pixels [ ][ ][ ][ ]							;90d1	36 00 
+	inc hl					; next VRAM address										;90d3	23 
+	ld (hl),$50				; draw 4 pixels [X][X][ ][ ]							;90d4	36 50 
+	call SHOW_SCR_WAIT		; show screen and wait for player						;90d6	cd 0e 93
+	jp GAME_START_SCREEN	; return to Start Screen								;90d9	c3 cb 8f 
 
 
 
