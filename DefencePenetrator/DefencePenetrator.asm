@@ -15,10 +15,34 @@
 ; Relative address 7AD1
 ;***********************************************************************************************
 ; File Header Block
-	defb 	"VZFO"                  			; [0000] Magic
+	defb 	"VZF0"                  			; [0000] Magic
 	FNAME	"DEF PENETRATOR  "
 	defb	$F0             					; File Type
     defw    BASIC_START        					; Destination/Basic Start address
+
+
+;***********************************************************************************************
+; SYSTEM CONSTANTS
+IOLATCH         	equ     $6800       		; (WR) Hardware IO Latch, (RD) Keyboard all Keys
+VDG_GFX_COLORS_0	equ		%00001000 			; GFX MODE, background Green
+VDG_GFX_COLORS_1	equ		%00011000 			; GFX MODE, background Buff
+VDG_MODE_CSS_MASK	equ		%00011000  			; mask to keep current Gfx settings
+BIT_SPK_MINUS   	equ     00100000b   		; Speake Pin (-)
+BIT_SPK_PLUS   		equ     00000001b   		; Speake Pin (+)
+SPEAKER_PINS		equ		BIT_SPK_MINUS|BIT_SPK_PLUS
+VRAM            	equ     $7000       		; Video RAM base address
+
+;************************************************************************
+; Keyboard Map              ADRES   |   D5  D4      D3  D2      D1  D0  |
+;-----------------------------------|-----------------------------------|
+KEYS_ROW_0  		equ     $6ffe   ;   R   Q       E           W   T   |
+KEYS_ROW_1  		equ     $6ffd   ;   F   A       D   CTRL    S   G   |
+KEYS_ROW_2  		equ     $6ffb   ;   V   Z       C   SHIFT   X   B   |
+KEYS_ROW_3  		equ     $6ff7   ;   4   1       3           2   5   |
+KEYS_ROW_4  		equ     $6fef   ;   M   SPACE   ,           .   N   |
+KEYS_ROW_5  		equ     $6fdf   ;   7   0       8   -       9   6   |
+KEYS_ROW_6  		equ     $6fbf   ;   U   P       I   RETURN  O   Y   |
+KEYS_ROW_7  		equ     $6f7f   ;   J   ;       K   :       L   H   |
 
 ;***********************************************************************************************
 ;
@@ -922,7 +946,13 @@ l7e79h:
 	rst 38h			;7eed	ff 	. 
 	ex af,af'			;7eee	08 	. 
 	rst 38h			;7eef	ff 	. 
-l7ef0h:
+
+;***************************************************************************************
+; Game CPU Stack Top 
+GAME_CPU_STACK:
+;***************************************************************************************
+
+
 	inc b			;7ef0	04 	. 
 	call m,0a286h		;7ef1	fc 86 a2 	. . . 
 	nop			;7ef4	00 	. 
@@ -2154,7 +2184,7 @@ l81d7h:
 	jr nc,$+88		;84e0	30 56 	0 V 
 	defb 0ddh,0ddh,030h	;illegal sequence		;84e2	dd dd 30 	. . 0 
 	ld c,(hl)			;84e5	4e 	N 
-	jr nc,l853ah		;84e6	30 52 	0 R 
+	jr nc,$853a		;84e6	30 52 	0 R 
 	jr nc,$+88		;84e8	30 56 	0 V 
 	ld b,h			;84ea	44 	D 
 	ld b,(hl)			;84eb	46 	F 
@@ -2234,112 +2264,24 @@ l850fh:
 	ld b,(hl)			;8533	46 	F 
 	ld b,h			;8534	44 	D 
 	ld b,(hl)			;8535	46 	F 
-l8536h:
-	ld hl,(04420h)		;8536	2a 20 44 	*   D 
-	ld b,l			;8539	45 	E 
-l853ah:
-	ld b,(hl)			;853a	46 	F 
-	ld b,l			;853b	45 	E 
-	ld c,(hl)			;853c	4e 	N 
-	ld b,e			;853d	43 	C 
-	ld b,l			;853e	45 	E 
-	jr nz,l8591h		;853f	20 50 	  P 
-	ld b,l			;8541	45 	E 
-	ld c,(hl)			;8542	4e 	N 
-	ld b,l			;8543	45 	E 
-	ld d,h			;8544	54 	T 
-	ld d,d			;8545	52 	R 
-	ld b,c			;8546	41 	A 
-	ld d,h			;8547	54 	T 
-	ld c,a			;8548	4f 	O 
-	ld d,d			;8549	52 	R 
-	jr nz,l8576h		;854a	20 2a 	  * 
-	inc h			;854c	24 	$ 
-l854dh:
-	ld d,a			;854d	57 	W 
-	ld d,d			;854e	52 	R 
-	ld c,c			;854f	49 	I 
-	ld d,h			;8550	54 	T 
-	ld d,h			;8551	54 	T 
-	ld b,l			;8552	45 	E 
-	ld c,(hl)			;8553	4e 	N 
-	jr nz,l8598h		;8554	20 42 	  B 
-	ld e,c			;8556	59 	Y 
-	jr nz,l85adh		;8557	20 54 	  T 
-	ld c,a			;8559	4f 	O 
-	ld c,l			;855a	4d 	M 
-	jr nz,l85b1h		;855b	20 54 	  T 
-	ld c,b			;855d	48 	H 
-	ld c,c			;855e	49 	I 
-	ld b,l			;855f	45 	E 
-	ld c,h			;8560	4c 	L 
-	inc h			;8561	24 	$ 
-l8562h:
-	ld b,e			;8562	43 	C 
-	ld c,a			;8563	4f 	O 
-	ld d,b			;8564	50 	P 
-	ld e,c			;8565	59 	Y 
-	ld d,d			;8566	52 	R 
-	ld c,c			;8567	49 	I 
-	ld b,a			;8568	47 	G 
-	ld c,b			;8569	48 	H 
-	ld d,h			;856a	54 	T 
-	jr nz,l859eh		;856b	20 31 	  1 
-	add hl,sp			;856d	39 	9 
-	jr c,l85a2h		;856e	38 32 	8 2 
-	jr nz,l859fh		;8570	20 2d 	  - 
-	jr nz,l85b7h		;8572	20 43 	  C 
-	ld c,a			;8574	4f 	O 
-	ld d,e			;8575	53 	S 
-l8576h:
-	ld c,l			;8576	4d 	M 
-	ld c,c			;8577	49 	I 
-	ld b,e			;8578	43 	C 
-	jr nz,l85ceh		;8579	20 53 	  S 
-	ld c,a			;857b	4f 	O 
-	ld b,(hl)			;857c	46 	F 
-	ld d,h			;857d	54 	T 
-	ld d,a			;857e	57 	W 
-	ld b,c			;857f	41 	A 
-	ld d,d			;8580	52 	R 
-	ld b,l			;8581	45 	E 
-	inc h			;8582	24 	$ 
-l8583h:
-	ld d,b			;8583	50 	P 
-	ld d,d			;8584	52 	R 
-	ld b,l			;8585	45 	E 
-	ld d,e			;8586	53 	S 
-	ld d,e			;8587	53 	S 
-	jr nz,l85c6h		;8588	20 3c 	  < 
-	ld d,e			;858a	53 	S 
-	ld d,b			;858b	50 	P 
-	ld b,c			;858c	41 	A 
-	ld b,e			;858d	43 	C 
-	ld b,l			;858e	45 	E 
-	ld a,020h		;858f	3e 20 	>   
-l8591h:
-	ld d,h			;8591	54 	T 
-	ld c,a			;8592	4f 	O 
-	jr nz,l85e5h		;8593	20 50 	  P 
-	ld c,h			;8595	4c 	L 
-	ld b,c			;8596	41 	A 
-	ld e,c			;8597	59 	Y 
-l8598h:
-	ld hl,02a24h		;8598	21 24 2a 	! $ * 
-	jr nz,l85e4h		;859b	20 47 	  G 
-	ld b,c			;859d	41 	A 
-l859eh:
-	ld c,l			;859e	4d 	M 
-l859fh:
-	ld b,l			;859f	45 	E 
-	dec l			;85a0	2d 	- 
-	ld c,a			;85a1	4f 	O 
-l85a2h:
-	ld d,(hl)			;85a2	56 	V 
-	ld b,l			;85a3	45 	E 
-	ld d,d			;85a4	52 	R 
-	jr nz,l85d1h		;85a5	20 2a 	  * 
-	inc h			;85a7	24 	$ 
+
+;***************************************************************************************
+; Game Texts.
+; Every text is terminated with '$ char and is printed in Gfx Mode 0
+;***************************************************************************************
+TXT_TITLE:
+	db	"* DEFENCE PENETRATOR *$"			;8536	2a 20 44 45 46 45 4e 43 45 20 50 45 4e 45 54 52 41 54 4f 52 20 2a 24
+TXT_AUTHOR:
+	db	"WRITTEN BY TOM THIEL$" 			;854d	57 52 49 54 54 45 4e 20 42 59 20 54 4f 4d 20 54 48 49 45 4c 24 
+TXT_COPYRIGHT:
+	db	"COPYRIGHT 1982 - COSMIC SOFTWARE$"	;8562	43 4f 50 59 52 49 47 48 54 20 31 39 38 32 20 2d 20 43 4f 53 4d 49 43 20 53 4f 46 54 57 41 52 45 24 
+TXT_PRESSSPACE:
+	db	"PRESS <SPACE> TO PLAY!$"			;8583	50 52 45 53 53 20 3c 53 50 41 43 45 3e 20 54 4f 20 50 4c 41 59 21 24 
+TXT_GAMEOVER:
+	db "* GAME-OVER *$"						;859a	2a 20 47 41 4d 45 2d 4f 56 45 52 20 2a 24 
+;***************************************************************************************
+
+
 l85a8h:
 	nop			;85a8	00 	. 
 l85a9h:
@@ -2550,8 +2492,8 @@ l8647h:
 	nop			;865b	00 	. 
 	nop			;865c	00 	. 
 sub_865dh:
-	ld hl,07000h		;865d	21 00 70 	! . p 
-	ld de,07001h		;8660	11 01 70 	. . p 
+	ld hl,VRAM		;865d	21 00 70 	! . p 
+	ld de,VRAM+1		;8660	11 01 70 	. . p 
 	ld bc,00258h		;8663	01 58 02 	. X . 
 	ld (hl),020h		;8666	36 20 	6   
 	ldir		;8668	ed b0 	. . 
@@ -2563,85 +2505,117 @@ sub_866bh:
 	ld (hl),000h		;8674	36 00 	6 . 
 	ldir		;8676	ed b0 	. . 
 	ret			;8678	c9 	. 
-l8679h:
-	dec bc			;8679	0b 	. 
-	ld a,b			;867a	78 	x 
-	or c			;867b	b1 	. 
-	jr nz,l8679h		;867c	20 fb 	  . 
-	ret			;867e	c9 	. 
-l867fh:
-	ld a,(hl)			;867f	7e 	~ 
-	cp 040h		;8680	fe 40 	. @ 
-	call nc,sub_868dh		;8682	d4 8d 86 	. . . 
-	cp 024h		;8685	fe 24 	. $ 
-	ret z			;8687	c8 	. 
-	ld (de),a			;8688	12 	. 
-	inc de			;8689	13 	. 
-	inc hl			;868a	23 	# 
-	jr l867fh		;868b	18 f2 	. . 
-sub_868dh:
-	sub 040h		;868d	d6 40 	. @ 
-	ret			;868f	c9 	. 
+
+;***********************************************************************************************
+; Delay
+; Delay by decrement value until 0
+; IN: bc - deley time value
+DELAY_BC:
+	dec bc			; decrement bc value										;8679	0b 	. 
+	ld a,b			; chack if bc = 0											;867a	78 	x 
+	or c			; is bc 0													;867b	b1 	. 
+	jr nz,DELAY_BC	; no - keep decrement bc									;867c	20 fb 	  . 
+	ret				; ---------------- End of Proc ---------------------------- ;867e	c9 	. 
+
+;***************************************************************************************
+; Print text on Screen.
+; Given text has to be terminated with '$' char. Procedure convert ASCII chars to Screen chars.
+; IN: hl - address of text to display
+;     de - VRAM destination address
+PRINT_TEXT:
+	ld a,(hl)			; a - char to display									;867f	7e 	~ 
+	cp $40				; is greater than $40 - need convert to Screen char		;8680	fe 40 	. @ 
+	call nc,.ASCII_2_SCREEN	; yes - convert to Screen Char						;8682	d4 8d 86 	. . . 
+	cp '$'				; is this text delimiter? 								;8685	fe 24 	. $ 
+	ret z				; yes -------------- End of Proc ---------------------- ;8687	c8 	. 
+	ld (de),a			; store char to Screen memoey (VRAM)					;8688	12 	. 
+	inc de				; de - next char in VRAM (destination)					;8689	13 	. 
+	inc hl				; hl - next char to display (source)					;868a	23 	# 
+	jr PRINT_TEXT		; print all chars until '$' is found					;868b	18 f2 	. . 
+.ASCII_2_SCREEN:
+	sub $40				; convert ASCII char to Screen Char						;868d	d6 40 	. @ 
+	ret					; ------------------ End of Proc ---------------------- ;868f	c9 	. 
+
+
 sub_8690h:
 	ld hl,07800h		;8690	21 00 78 	! . x 
 	ld de,07180h		;8693	11 80 71 	. . q 
 	ld bc,00580h		;8696	01 80 05 	. . . 
 	ldir		;8699	ed b0 	. . 
 	ret			;869b	c9 	. 
-l869ch:
-	xor a			;869c	af 	. 
-	ld (06800h),a		;869d	32 00 68 	2 . h 
-	ld hl,07000h		;86a0	21 00 70 	! . p 
-	ld de,07001h		;86a3	11 01 70 	. . p 
-	ld bc,00200h		;86a6	01 00 02 	. . . 
-	ld (hl),020h		;86a9	36 20 	6   
-	ldir		;86ab	ed b0 	. . 
-	di			;86ad	f3 	. 
-	ld sp,l7ef0h		;86ae	31 f0 7e 	1 . ~ 
-	ld de,07065h		;86b1	11 65 70 	. e p 
-	ld hl,l8536h		;86b4	21 36 85 	! 6 . 
-	call l867fh		;86b7	cd 7f 86 	.  . 
-	ld de,070c6h		;86ba	11 c6 70 	. . p 
-	ld hl,l854dh		;86bd	21 4d 85 	! M . 
-	call l867fh		;86c0	cd 7f 86 	.  . 
-	ld de,07120h		;86c3	11 20 71 	.   q 
-	ld hl,l8562h		;86c6	21 62 85 	! b . 
-	call l867fh		;86c9	cd 7f 86 	.  . 
-	ld de,071c5h		;86cc	11 c5 71 	. . q 
-	ld hl,l8583h		;86cf	21 83 85 	! . . 
-	call l867fh		;86d2	cd 7f 86 	.  . 
-	ld a,080h		;86d5	3e 80 	> . 
-l86d7h:
-	ld hl,07000h		;86d7	21 00 70 	! . p 
-	ld de,07001h		;86da	11 01 70 	. . p 
-	ld bc,0001fh		;86dd	01 1f 00 	. . . 
-	ld (hl),a			;86e0	77 	w 
-	ldir		;86e1	ed b0 	. . 
-	ld hl,071e0h		;86e3	21 e0 71 	! . q 
-	ld de,071e1h		;86e6	11 e1 71 	. . q 
-	ld bc,0001fh		;86e9	01 1f 00 	. . . 
-	ld (hl),a			;86ec	77 	w 
-	ldir		;86ed	ed b0 	. . 
-	inc a			;86ef	3c 	< 
-	cp 0ffh		;86f0	fe ff 	. . 
-	jr c,l86f6h		;86f2	38 02 	8 . 
-	ld a,080h		;86f4	3e 80 	> . 
+
+
+
+;***********************************************************************************************
+;
+;    M A I N   E N T R Y   P O I N T
+;
+;***********************************************************************************************
+	org $869c
+
+MAIN:
+; -- cleanup procedure	
+	xor a				; 0 - CASOUT off, SOUND off, GFX MODE 0					;869c	af 
+	ld (IOLATCH),a		; reset Gfx and Sound									;869d	32 00 68
+; -- clear screen (fill with spaces)
+	ld hl,VRAM			; hl - start of Video RAM 								;86a0	21 00 70
+	ld de,VRAM+1		; de - destination - start of Video RAM 				;86a3	11 01 70 
+	ld bc,512			; 512 bytes of VRAM area (Mode 0)						;86a6	01 00 02
+	ld (hl),' '			; store space into first byte							;86a9	36 20 
+	ldir				; fill rest of Screen with spaces						;86ab	ed b0 
+; -- disable interrupts and reset CPU stack
+	di					; disable interrupts									;86ad	f3 
+	ld sp,GAME_CPU_STACK; set CPU Stack to custom reserved area					;86ae	31 f0 7e 
+
+; -- Print Welcome screen Texts
+	ld de,VRAM+(3*32)+5	; screen coord (5,3)char [$7065]						;86b1	11 65 70
+	ld hl,TXT_TITLE		; hl - "DEFENCE PENETRATOR" text						;86b4	21 36 85 
+	call PRINT_TEXT		; print text on Screen 									;86b7	cd 7f 86 	.  . 
+	ld de,VRAM+(6*32)+6	; screen coord (6,6)char [$70c6]						;86ba	11 c6 70 
+	ld hl,TXT_AUTHOR	; hl - "WRITTEN BY TOM THIEL" text						;86bd	21 4d 85 
+	call PRINT_TEXT		; print text on Screen 									;86c0	cd 7f 86 	.  . 
+	ld de,VRAM+(9*32)+0	; screen coord (0,9)char [$7120]						;86c3	11 20 71 
+	ld hl,TXT_COPYRIGHT	; hl - "COPYRIGHT 1982 - COSMIC SOFTWARE" text			;86c6	21 62 85
+	call PRINT_TEXT		; print text on Screen 									;86c9	cd 7f 86 	.  . 
+	ld de,VRAM+(14*32)+5; screen coord (5,14)char [$71c5]						;86cc	11 c5 71 
+	ld hl,TXT_PRESSSPACE; hl - "PRESS <SPACE> TO PLAY!" text					;86cf	21 83 85 
+	call PRINT_TEXT		; print text on Screen 									;86d2	cd 7f 86 	.  . 
+
+; -- Draw Welcome screen Frame chars
+	ld a,$80			; a - green blank SemiGfx Char 							;86d5	3e 80 	> . 
+DRAW_WELCOME_FRAME:
+	ld hl,VRAM+(0*32)+0	; screen coord (0,0) [$7000]							;86d7	21 00 70 	! . p 
+	ld de,VRAM+1		; next char in 1st line									;86da	11 01 70 	. . p 
+	ld bc,31			; 31 chars in line to fill								;86dd	01 1f 00 	. . . 
+	ld (hl),a			; store 1rs char										;86e0	77 	w 
+	ldir				; fill 1st line on Screen with char from A				;86e1	ed b0 	. . 
+	ld hl,VRAM+(15*32)+0; screen coord (0,15) [$71e0]							;86e3	21 e0 71 	! . q 
+	ld de,VRAM+(15*32)+1; next char in last line								;86e6	11 e1 71 	. . q 
+	ld bc,31			; 31 chars in line to fill								;86e9	01 1f 00 	. . . 
+	ld (hl),a			; store 1rs char										;86ec	77 	w 
+	ldir				; fill last line on Screen with char from A				;86ed	ed b0 	. . 
+	inc a				; a - next SemiChar to draw on Top&Bottom line			;86ef	3c 	< 
+	cp $ff				; is less than last char 								;86f0	fe ff 	. . 
+	jr c,l86f6h			; yes - skip reset SemiChar - check space Key press 	;86f2	38 02 	8 . 
+	ld a,080h			; reset SemiChar to draw next time						;86f4	3e 80 	> . 
 l86f6h:
-	ld d,a			;86f6	57 	W 
-	ld a,(06fefh)		;86f7	3a ef 6f 	: . o 
-	bit 4,a		;86fa	cb 67 	. g 
-	jr z,l8707h		;86fc	28 09 	( . 
-	ld bc,02134h		;86fe	01 34 21 	. 4 ! 
-	call l8679h		;8701	cd 79 86 	. y . 
-	ld a,d			;8704	7a 	z 
-	jr l86d7h		;8705	18 d0 	. . 
+	ld d,a				; d - save SemiChar to draw								;86f6	57 	W 
+	ld a,(KEYS_ROW_4)	; a - read Keyboard row 4								;86f7	3a ef 6f 	: . o 
+	bit 4,a				; is SPACE kay pressed									;86fa	cb 67 	. g 
+	jr z,l8707h			; yes - ;86fc	28 09 	( . 
+	ld bc,8500			; bc - delay time										;86fe	01 34 21 	. 4 ! 
+	call DELAY_BC		; wait average delay									;8701	cd 79 86 	. y . 
+	ld a,d				; a - restore SemiChar to draw							;8704	7a 	z 
+	jr DRAW_WELCOME_FRAME	; draw top & bottom lines with next SemiChar		;8705	18 d0 	. . 
+
+
 l8707h:
 	ld a,003h		;8707	3e 03 	> . 
 	ld (l85b3h),a		;8709	32 b3 85 	2 . . 
 	ld a,001h		;870c	3e 01 	> . 
 	ld (l85b4h),a		;870e	32 b4 85 	2 . . 
 	ld a,008h		;8711	3e 08 	> . 
-	ld (06800h),a		;8713	32 00 68 	2 . h 
+	ld (IOLATCH),a		;8713	32 00 68 	2 . h 
 	ld (l85a9h),a		;8716	32 a9 85 	2 . . 
 	ld hl,00000h		;8719	21 00 00 	! . . 
 	ld (l85b5h),hl		;871c	22 b5 85 	" . . 
@@ -2668,12 +2642,12 @@ sub_8725h:
 	xor a			;8754	af 	. 
 	ld (l85a8h),a		;8755	32 a8 85 	2 . . 
 	ld a,008h		;8758	3e 08 	> . 
-	ld (06800h),a		;875a	32 00 68 	2 . h 
+	ld (IOLATCH),a		;875a	32 00 68 	2 . h 
 	ld (l85a9h),a		;875d	32 a9 85 	2 . . 
 	ld a,014h		;8760	3e 14 	> . 
 	ld (l85b9h),a		;8762	32 b9 85 	2 . . 
-	ld hl,07000h		;8765	21 00 70 	! . p 
-	ld de,07001h		;8768	11 01 70 	. . p 
+	ld hl,VRAM		;8765	21 00 70 	! . p 
+	ld de,VRAM+1		;8768	11 01 70 	. . p 
 	ld bc,00800h		;876b	01 00 08 	. . . 
 	ld (hl),000h		;876e	36 00 	6 . 
 	ldir		;8770	ed b0 	. . 
@@ -2685,7 +2659,7 @@ sub_8725h:
 	nop			;8779	00 	. 
 	nop			;877a	00 	. 
 	pop hl			;877b	e1 	. 
-	ld sp,l7ef0h		;877c	31 f0 7e 	1 . ~ 
+	ld sp,GAME_CPU_STACK		;877c	31 f0 7e 	1 . ~ 
 	push hl			;877f	e5 	. 
 	ret			;8780	c9 	. 
 sub_8781h:
@@ -2744,7 +2718,7 @@ l87d9h:
 	ld hl,l87d9h		;87df	21 d9 87 	! . . 
 	ret			;87e2	c9 	. 
 sub_87e3h:
-	ld hl,07000h		;87e3	21 00 70 	! . p 
+	ld hl,VRAM		;87e3	21 00 70 	! . p 
 	ld (l85bah),hl		;87e6	22 ba 85 	" . . 
 	ld hl,(l85b5h)		;87e9	2a b5 85 	* . . 
 	call sub_888bh		;87ec	cd 8b 88 	. . . 
@@ -2986,8 +2960,8 @@ sub_897ah:
 l8988h:
 	ld a,e			;8988	7b 	{ 
 	ld (l85b4h),a		;8989	32 b4 85 	2 . . 
-	ld hl,07000h		;898c	21 00 70 	! . p 
-	ld de,07001h		;898f	11 01 70 	. . p 
+	ld hl,VRAM		;898c	21 00 70 	! . p 
+	ld de,VRAM+1		;898f	11 01 70 	. . p 
 	ld bc,00140h		;8992	01 40 01 	. @ . 
 	ld (hl),000h		;8995	36 00 	6 . 
 	ldir		;8997	ed b0 	. . 
@@ -2998,31 +2972,31 @@ l8988h:
 	ld (l85a8h),a		;89a2	32 a8 85 	2 . . 
 	jp 08918h		;89a5	c3 18 89 	. . . 
 sub_89a8h:
-	ld a,(06ffeh)		;89a8	3a fe 6f 	: . o 
+	ld a,(KEYS_ROW_0)		;89a8	3a fe 6f 	: . o 
 	bit 4,a		;89ab	cb 67 	. g 
 	jr z,l89e2h		;89ad	28 33 	( 3 
-	ld a,(06ffdh)		;89af	3a fd 6f 	: . o 
+	ld a,(KEYS_ROW_1)		;89af	3a fd 6f 	: . o 
 	bit 4,a		;89b2	cb 67 	. g 
 	jr z,l89f0h		;89b4	28 3a 	( : 
 l89b6h:
-	ld a,(06fdfh)		;89b6	3a df 6f 	: . o 
+	ld a,(KEYS_ROW_5)		;89b6	3a df 6f 	: . o 
 	bit 4,a		;89b9	cb 67 	. g 
 	jr z,l89fch		;89bb	28 3f 	( ? 
 	bit 2,a		;89bd	cb 57 	. W 
 	jr z,l8a10h		;89bf	28 4f 	( O 
 l89c1h:
-	ld a,(06fefh)		;89c1	3a ef 6f 	: . o 
+	ld a,(KEYS_ROW_4)		;89c1	3a ef 6f 	: . o 
 	bit 5,a		;89c4	cb 6f 	. o 
 	call sub_8e20h		;89c6	cd 20 8e 	.   . 
-	ld a,(06fdfh)		;89c9	3a df 6f 	: . o 
+	ld a,(KEYS_ROW_5)		;89c9	3a df 6f 	: . o 
 	cp 0f5h		;89cc	fe f5 	. . 
-	jp z,l869ch		;89ce	ca 9c 86 	. . . 
-	ld a,(06ff7h)		;89d1	3a f7 6f 	: . o 
+	jp z,MAIN		;89ce	ca 9c 86 	. . . 
+	ld a,(KEYS_ROW_3)		;89d1	3a f7 6f 	: . o 
 	bit 3,a		;89d4	cb 5f 	. _ 
 	call z,sub_89dah		;89d6	cc da 89 	. . . 
 	ret			;89d9	c9 	. 
 sub_89dah:
-	ld a,(06ff7h)		;89da	3a f7 6f 	: . o 
+	ld a,(KEYS_ROW_3)		;89da	3a f7 6f 	: . o 
 	bit 5,a		;89dd	cb 6f 	. o 
 	jr nz,sub_89dah		;89df	20 f9 	  . 
 	ret			;89e1	c9 	. 
@@ -3169,8 +3143,8 @@ l8adfh:
 	call sub_8b0bh		;8af7	cd 0b 8b 	. . . 
 	jr l8b02h		;8afa	18 06 	. . 
 l8afch:
-	ld bc,0000fh		;8afc	01 0f 00 	. . . 
-	call l8679h		;8aff	cd 79 86 	. y . 
+	ld bc,15			; bc - delay time 										;8afc	01 0f 00 	. . . 
+	call DELAY_BC		; wait short Delay										;8aff	cd 79 86 	. y . 
 l8b02h:
 	pop bc			;8b02	c1 	. 
 	ld de,00003h		;8b03	11 03 00 	. . . 
@@ -3240,8 +3214,8 @@ l8b94h:
 	call sub_8bc0h		;8bac	cd c0 8b 	. . . 
 	jr l8bb7h		;8baf	18 06 	. . 
 l8bb1h:
-	ld bc,0000fh		;8bb1	01 0f 00 	. . . 
-	call l8679h		;8bb4	cd 79 86 	. y . 
+	ld bc,15			; bc - delay time 										;8bb1	01 0f 00 	. . . 
+	call DELAY_BC		; wait short delay 										;8bb4	cd 79 86 	. y . 
 l8bb7h:
 	pop bc			;8bb7	c1 	. 
 	ld de,00003h		;8bb8	11 03 00 	. . . 
@@ -3300,8 +3274,8 @@ l8bf8h:
 	ld (hl),088h		;8c2e	36 88 	6 . 
 	jr l8c38h		;8c30	18 06 	. . 
 l8c32h:
-	ld bc,0000ch		;8c32	01 0c 00 	. . . 
-	call l8679h		;8c35	cd 79 86 	. y . 
+	ld bc,12			; bc - delay time										;8c32	01 0c 00 	. . . 
+	call DELAY_BC		; wait short delay										;8c35	cd 79 86 	. y . 
 l8c38h:
 	pop bc			;8c38	c1 	. 
 	ld de,00004h		;8c39	11 04 00 	. . . 
@@ -3338,8 +3312,8 @@ l8c69h:
 	ld (ix+000h),000h		;8c7a	dd 36 00 00 	. 6 . . 
 	jr l8c86h		;8c7e	18 06 	. . 
 l8c80h:
-	ld bc,0000eh		;8c80	01 0e 00 	. . . 
-	call l8679h		;8c83	cd 79 86 	. y . 
+	ld bc,14			; bc - delay time										;8c80	01 0e 00 	. . . 
+	call DELAY_BC		; wait short delay										;8c83	cd 79 86 	. y . 
 l8c86h:
 	pop bc			;8c86	c1 	. 
 	ld de,00004h		;8c87	11 04 00 	. . . 
@@ -3431,7 +3405,7 @@ sub_8d0ch:
 	ret			;8d2d	c9 	. 
 sub_8d2eh:
 	ld b,0ffh		;8d2e	06 ff 	. . 
-	ld hl,06800h		;8d30	21 00 68 	! . h 
+	ld hl,IOLATCH		;8d30	21 00 68 	! . h 
 l8d33h:
 	ld (hl),009h		;8d33	36 09 	6 . 
 	push bc			;8d35	c5 	. 
@@ -3495,7 +3469,7 @@ l8da5h:
 sub_8dadh:
 	push bc			;8dad	c5 	. 
 	ld b,0dch		;8dae	06 dc 	. . 
-	ld hl,06800h		;8db0	21 00 68 	! . h 
+	ld hl,IOLATCH		;8db0	21 00 68 	! . h 
 l8db3h:
 	ld (hl),009h		;8db3	36 09 	6 . 
 	push bc			;8db5	c5 	. 
@@ -3534,8 +3508,8 @@ l8dd3h:
 	ld (hl),033h		;8df0	36 33 	6 3 
 	jr l8dfah		;8df2	18 06 	. . 
 l8df4h:
-	ld bc,00014h		;8df4	01 14 00 	. . . 
-	call l8679h		;8df7	cd 79 86 	. y . 
+	ld bc,20			; bc - delay time										;8df4	01 14 00 	. . . 
+	call DELAY_BC		; wait short delay										;8df7	cd 79 86 	. y . 
 l8dfah:
 	pop bc			;8dfa	c1 	. 
 	ld de,00004h		;8dfb	11 04 00 	. . . 
@@ -3560,8 +3534,8 @@ sub_8e15h:
 	ret			;8e1f	c9 	. 
 sub_8e20h:
 	jp z,l8d40h		;8e20	ca 40 8d 	. @ . 
-	ld bc,01770h		;8e23	01 70 17 	. p . 
-	jp l8679h		;8e26	c3 79 86 	. y . 
+	ld bc,6000		; bc - delay time											;8e23	01 70 17 	. p . 
+	jp DELAY_BC		; wait long delay											;8e26	c3 79 86 	. y . 
 sub_8e29h:
 	ld ix,l85d3h		;8e29	dd 21 d3 85 	. ! . . 
 	ld b,002h		;8e2d	06 02 	. . 
@@ -3587,8 +3561,8 @@ l8e2fh:
 	ld (hl),0ffh		;8e58	36 ff 	6 . 
 	jr l8e62h		;8e5a	18 06 	. . 
 l8e5ch:
-	ld bc,0000fh		;8e5c	01 0f 00 	. . . 
-	call l8679h		;8e5f	cd 79 86 	. y . 
+	ld bc,15			; bc - delay time										;8e5c	01 0f 00 	. . . 
+	call DELAY_BC		; wait short delay										;8e5f	cd 79 86 	. y . 
 l8e62h:
 	pop bc			;8e62	c1 	. 
 	ld de,00004h		;8e63	11 04 00 	. . . 
@@ -3742,13 +3716,14 @@ l8f75h:
 	add hl,de			;8f7f	19 	. 
 	ld (l85b5h),hl		;8f80	22 b5 85 	" . . 
 	call sub_865dh		;8f83	cd 5d 86 	. ] . 
-	xor a			;8f86	af 	. 
-	ld (06800h),a		;8f87	32 00 68 	2 . h 
-	ld hl,l8fb5h		;8f8a	21 b5 8f 	! . . 
-	ld de,07107h		;8f8d	11 07 71 	. . q 
-	call l867fh		;8f90	cd 7f 86 	.  . 
-	ld bc,00000h		;8f93	01 00 00 	. . . 
-	call l8679h		;8f96	cd 79 86 	. y . 
+
+	xor a				; a - Gfx Mode 0, Sound Off								;8f86	af 	. 
+	ld (IOLATCH),a		; reset Gfx Mode 0										;8f87	32 00 68 	2 . h 
+	ld hl,TXT_WAVECOMPLETE	; hl - "* WAVE COMPLETE! *" text 					;8f8a	21 b5 8f 	! . . 
+	ld de,VRAM+(8*32)+7 ; screen coord (7,8)char [$7107]						;8f8d	11 07 71 	. . q 
+	call PRINT_TEXT		; print text on Screen 									;8f90	cd 7f 86 	.  . 
+	ld bc,0				; bc - delay time (65536)								;8f93	01 00 00 	. . . 
+	call DELAY_BC		; wait very long delay									;8f96	cd 79 86 	. y . 
 	ld a,001h		;8f99	3e 01 	> . 
 	ld (l85b4h),a		;8f9b	32 b4 85 	2 . . 
 	call sub_8725h		;8f9e	cd 25 87 	. % . 
@@ -3760,21 +3735,12 @@ l8f75h:
 	ld a,006h		;8fad	3e 06 	> . 
 	ld (l85b3h),a		;8faf	32 b3 85 	2 . . 
 	jp l90aah		;8fb2	c3 aa 90 	. . . 
-l8fb5h:
-	ld hl,(05720h)		;8fb5	2a 20 57 	*   W 
-	ld b,c			;8fb8	41 	A 
-	ld d,(hl)			;8fb9	56 	V 
-	ld b,l			;8fba	45 	E 
-	jr nz,$+69		;8fbb	20 43 	  C 
-	ld c,a			;8fbd	4f 	O 
-	ld c,l			;8fbe	4d 	M 
-	ld d,b			;8fbf	50 	P 
-	ld c,h			;8fc0	4c 	L 
-	ld b,l			;8fc1	45 	E 
-	ld d,h			;8fc2	54 	T 
-	ld b,l			;8fc3	45 	E 
-	ld hl,02a20h		;8fc4	21 20 2a 	!   * 
-	inc h			;8fc7	24 	$ 
+
+;***************************************************************************************
+; 
+TXT_WAVECOMPLETE:
+	db	"* WAVE COMPLETE! *$"		;8fb5	2a 20 57 41 56 45 20 43 4f 4d 50 4c 45 54 45 21 20 2a 24
+
 sub_8fc8h:
 	push bc			;8fc8	c5 	. 
 	ld b,004h		;8fc9	06 04 	. . 
@@ -3844,7 +3810,7 @@ l901eh:
 l9020h:
 	push bc			;9020	c5 	. 
 	ld bc,00800h		;9021	01 00 08 	. . . 
-	ld hl,07000h		;9024	21 00 70 	! . p 
+	ld hl,VRAM		;9024	21 00 70 	! . p 
 l9027h:
 	ld a,r		;9027	ed 5f 	. _ 
 	ld (hl),a			;9029	77 	w 
@@ -3864,34 +3830,28 @@ l9027h:
 	jp l90aah		;9041	c3 aa 90 	. . . 
 l9044h:
 	call sub_865dh		;9044	cd 5d 86 	. ] . 
-	xor a			;9047	af 	. 
-	ld (06800h),a		;9048	32 00 68 	2 . h 
-	ld hl,l8598h+2		;904b	21 9a 85 	! . . 
-	ld de,07089h		;904e	11 89 70 	. . p 
-	call l867fh		;9051	cd 7f 86 	.  . 
-	ld hl,l906fh		;9054	21 6f 90 	! o . 
-	ld de,07109h		;9057	11 09 71 	. . q 
-	call l867fh		;905a	cd 7f 86 	.  . 
+
+	xor a				; a - Gfx Mode 0, Sound Off								;9047	af 	. 
+	ld (IOLATCH),a		; restore Gfx Mode 0									;9048	32 00 68 	2 . h 
+	ld hl,TXT_GAMEOVER	; hl - "* GAME-OVER *" text								;904b	21 9a 85 	! . . 
+	ld de,VRAM+(4*32)+9 ; screen coord (9,4) char [$7089]						;904e	11 89 70 	. . p 
+	call PRINT_TEXT		; print text on Screen 									;9051	cd 7f 86 	.  . 
+	ld hl,TXT_YOURSCORE	; hl - "YOUR SCORE WAS" text 							;9054	21 6f 90 	! o . 
+	ld de,VRAM+(8*32)+9 ; screen coord (9,8) char [$7109]						;9057	11 09 71 	. . q 
+	call PRINT_TEXT		; print text on Screen 									;905a	cd 7f 86 	.  . 
 	call sub_907eh		;905d	cd 7e 90 	. ~ . 
-	ld bc,00000h		;9060	01 00 00 	. . . 
-	call l8679h		;9063	cd 79 86 	. y . 
-	call l8679h		;9066	cd 79 86 	. y . 
-	call l8679h		;9069	cd 79 86 	. y . 
-	jp l869ch		;906c	c3 9c 86 	. . . 
-l906fh:
-	ld e,c			;906f	59 	Y 
-	ld c,a			;9070	4f 	O 
-	ld d,l			;9071	55 	U 
-	ld d,d			;9072	52 	R 
-	jr nz,l90c8h		;9073	20 53 	  S 
-	ld b,e			;9075	43 	C 
-	ld c,a			;9076	4f 	O 
-	ld d,d			;9077	52 	R 
-	ld b,l			;9078	45 	E 
-	jr nz,$+89		;9079	20 57 	  W 
-	ld b,c			;907b	41 	A 
-	ld d,e			;907c	53 	S 
-	inc h			;907d	24 	$ 
+	ld bc,0				; bc - delay time (65536)								;9060	01 00 00 	. . . 
+	call DELAY_BC		; wait very long delay									;9063	cd 79 86 	. y . 
+	call DELAY_BC		; wait very long delay									;9066	cd 79 86 	. y . 
+	call DELAY_BC		; wait very long delay									;9069	cd 79 86 	. y . 
+	jp MAIN		;906c	c3 9c 86 	. . . 
+
+;***************************************************************************************
+; Score Summary
+; Text do display on Screen
+TXT_YOURSCORE:
+	db	"YOUR SCORE WAS$"		;906f	59 4f 55 52 20 53 43 4f 52 45 20 57 41 53 24
+
 sub_907eh:
 	ld hl,(l85b5h)		;907e	2a b5 85 	* . . 
 	ld iy,0714dh		;9081	fd 21 4d 71 	. ! M q 
@@ -3947,9 +3907,9 @@ l90c8h:
 	add hl,de			;90f3	19 	. 
 	ld (l85ach),hl		;90f4	22 ac 85 	" . . 
 l90f7h:
-	ld bc,036b0h		;90f7	01 b0 36 	. . 6 
-	call l8679h		;90fa	cd 79 86 	. y . 
-	ld sp,l7ef0h		;90fd	31 f0 7e 	1 . ~ 
+	ld bc,14000			; bc - delay time										;90f7	01 b0 36 	. . 6 
+	call DELAY_BC		; wait long delay										;90fa	cd 79 86 	. y . 
+	ld sp,GAME_CPU_STACK		;90fd	31 f0 7e 	1 . ~ 
 	jr l90aah		;9100	18 a8 	. . 
 	nop			;9102	00 	. 
 	nop			;9103	00 	. 
