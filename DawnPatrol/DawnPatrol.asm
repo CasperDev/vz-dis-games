@@ -3998,14 +3998,14 @@ l9786h:
 	ld a,10				; a - 10 minutes to compare with							;979d	3e 0a 
 	inc (hl)			; add 1 minute 												;979f	34 
 	cp (hl)				; is value is now 10?										;97a0	be 
-	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97a1	20 57  
+	jr nz,EXIT_CODE_0	; no - return with Exit code 0 ----------------------------	;97a1	20 57  
 ; -- reset last digit and add 1 to tens of minutes
 	ld (hl),0			; reset last digit to 0										;97a3	36 00 
 	dec hl				; hl - 1st digit of MIssion Time minutes (tens)				;97a5	2b 
 	ld a,6				; a - 60 minutes to compare with 							;97a6	3e 06
 	inc (hl)			; add 10 minutes 											;97a8	34
 	cp (hl)				; is value is now 60? 										;97a9	be 
-	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97aa	20 4e 
+	jr nz,EXIT_CODE_0	; no - return with Exit code 0 ----------------------------	;97aa	20 4e 
 ; -- reset 1st digit of minutes and add 1 to hours
 	ld (hl),0			; reset minutes to 00										;97ac	36 00 
 	dec hl				; hl - digit of Mission Time hours							;97ae	2b 
@@ -4013,9 +4013,9 @@ l9786h:
 ; -- check if it's now 6:00 AM - end of game	
 	ld a,6				; a - 6 to compare 											;97b0	3e 06 
 	cp (hl)				; is it 6:00 AM? 											;97b2	be 
-	jr nz,EXIT_CODE_0		; no - return with Exit code 0 ----------------------------	;97b3	20 45 
+	jr nz,EXIT_CODE_0	; no - return with Exit code 0 ----------------------------	;97b3	20 45 
 ; -- it's 6:00 AM - time is over
-	jr EXIT_CODE_1			; return with Exit code 1 --------------------------------- ;97b5	18 3f 
+	jr EXIT_CODE_1		; return with Exit code 1 --------------------------------- ;97b5	18 3f 
 
 l97b7h:
 	ld bc,(0790bh)		;97b7	ed 4b 0b 79 	. K . y 
